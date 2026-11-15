@@ -78,6 +78,7 @@ Start the client (offline without a signed-in Microsoft account).
 - `--join`: Join a friend's world with its invite code
 - `--server`: Join this server at once: an address, or a server of the list by name or position
 - `--arg`: An extra argument for the game, passed through as-is (repeatable), for example --server-thread
+- `--fabric`: Explicitly run Java mods offline with an imported offline Java Bridge client. Java mods are programs with full access to your files: use only trusted mods
 - `--account`: Play this launch as this signed-in account (its name or UUID), without changing the one `account select` picked: several games can play as several accounts at once
 
 MCP: `play`, then the `game_*` tools.
@@ -730,6 +731,38 @@ Download Mojang's Java runtime: a major (8, 16, 17, 21, 25) or a component name 
 - `JAVA`
 
 MCP: `java_install`.
+
+## `horizon-launcher java-mods list`
+
+List Fabric jars in an instance.
+
+    horizon-launcher java-mods list
+
+- `--instance`
+
+MCP: `java_mods_list`.
+
+## `horizon-launcher java-mods add`
+
+Copy a Fabric jar into an instance.
+
+    horizon-launcher java-mods add <FILE>
+
+- `FILE`
+- `--instance`
+
+MCP: `java_mods_add`.
+
+## `horizon-launcher java-mods remove`
+
+Send a Fabric jar to the trash by filename, mod id or name.
+
+    horizon-launcher java-mods remove <WHICH>
+
+- `WHICH`
+- `--instance`
+
+MCP: `java_mods_remove`, needs `confirm: true`.
 
 ## `horizon-launcher screenshots list`
 

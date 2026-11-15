@@ -74,6 +74,21 @@ Java mods, and the workflow does not publish a combined build.
 
 ## Current verification limits
 
-No combined build was attempted or published. This environment has no Rust toolchain;
-GitHub Actions is used for the file-management checks. Do not label the existing
-offline-only workflow artifact as a combined build.
+An experimental paired build now combines this fork's launcher with the pinned upstream
+Java Bridge client plus `integration/upstream-offline-java-mods.patch`. It explicitly opts in
+with `play --fabric`; normal play does not enable the bridge. The fork's offline mode does
+not verify ownership and is distinct from the upstream owner's gate. Both programs are built
+from source; Minecraft, Fabric and third-party mods are not bundled. See
+`integration/README-ru.txt` for usage and security warnings. The GUI does not yet offer a
+Fabric toggle, and the `java-mods` JSON field `bridge_integrated` remains false because this
+is an experimental external client, not full integration into the offline game.
+
+The patch's opt-in and upstream owner gate tests passed on Linux and Windows; the patched
+client compiled on both in Actions run 43735245210. A launcher Linux test in that run failed
+on translation coverage, fixed subsequently. The full Linux launcher test passed in run
+43736556798 after generating the stale CLI reference in the runner; the reference has since
+been updated and CI now checks it without accepting differences. A later run is in progress.
+No real game
+launch or real Fabric mod has been verified: legal user-supplied Minecraft files, a matching
+prepared version, Java 25 JDK and runtime dependencies are still required. Do not describe
+these artifacts as a verified working game or signed release.
