@@ -1,0 +1,62 @@
+# One-off publication of the already tested, unsigned beta bundles. The fixed run and
+# commit prevent a later build or a moving branch from silently changing the release.
+name: Publish Java Bridge beta
+
+on:
+  push:
+    branches: ['arena/fb746f0f-horizon-offline-launcher-with']
+    paths: ['.github/workflows/publish-java-bridge-beta.yml']
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      BUILD_RUN: '43737613557'
+      BUILD_COMMIT: '909b9bcc6aa6f657bc7b431864d0efde73e63661'
+      RELEASE_TAG: 'java-bridge-beta-2026.11.15'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify original build and absence of release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          run=$(gh api "repos/$GH_REPO/actions/runs/$BUILD_RUN")
+          test "$(jq -r .head_sha <<< "$run")" = "$BUILD_COMMIT"
+          test "$(jq -r .status <<< "$run")" = completed
+          test "$(jq -r .conclusion <<< "$run")" = success
+          # Never modify an existing release or tag from this workflow.
+          if gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo '::error::The release tag already exists; refusing to overwrite it.'
+            exit 1
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: offline-java-bridge-beta-linux-x64
+          path: release-files
+          run-id: ${{ env.BUILD_RUN }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: offline-java-bridge-beta-windows-x64
+          path: release-files
+          run-id: ${{ env.BUILD_RUN }}
+          github-token: ${{ github.token }}
+      - name: Publish prerelease after both files are uploaded
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-files
+          test -s offline-java-bridge-beta-linux-x64.tar.gz
+          test -s offline-java-bridge-beta-windows-x64.zip
+          sha256sum offline-java-bridge-beta-linux-x64.tar.gz offline-java-bridge-beta-windows-x64.zip > SHA256SUMS.txt
+          gh release create "$RELEASE_TAG" --target "$BUILD_COMMIT" --title 'Horizon Offline + Java Bridge — beta' --notes-file ../integration/release-notes-2026.11.15.md --prerelease --draft offline-java-bridge-beta-linux-x64.tar.gz offline-java-bridge-beta-windows-x64.zip SHA256SUMS.txt
+          gh release edit "$RELEASE_TAG" --draft=false --latest=false
