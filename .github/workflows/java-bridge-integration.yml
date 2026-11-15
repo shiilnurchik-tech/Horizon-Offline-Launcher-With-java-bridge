@@ -115,6 +115,8 @@ jobs:
         run: cargo test --locked -p horizon-world --test mod_block_collision
       - name: Test world update hook
         run: cargo test --locked -p horizon-world --lib a_set_block_names_the_position_whose_neighbours_it_updates
+      - name: Test unsupported mod structures
+        run: cargo test --locked -p horizon-world --lib worldgen::structure::start::tests::unsupported
       - name: Test in-memory and network framing
         run: cargo test --locked -p horizon-protocol --lib
       - name: Check Java path normalization

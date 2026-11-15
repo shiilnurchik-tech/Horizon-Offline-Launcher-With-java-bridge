@@ -35,10 +35,12 @@ branch tip.
 The bridge's Fabric jar file-management module and its tests have been ported. The CLI
 `java-mods list/add/remove` manages files under an instance's `mods-java/` and explicitly
 warns that this build cannot run them. The JVM crate's sources have also been imported;
-the game does not yet call them. The bridge's content-porter changes are being merged
-with the newer archive safety checks. The `Java Bridge integration checks` workflow
-checks the file manager on Linux and Windows and checks the JVM crate and content porter
-on Linux; it does not publish a combined build.
+the game does not yet call them. Content-porter, mod block states and collisions, large
+in-memory protocol frames, worldgen noise seeds, OBJ texture slots, and some world hooks
+have been ported while retaining newer offline changes. The `Java Bridge integration
+checks` workflow tests these components and the file manager on Linux and Windows and
+checks the client library on Linux; it does not publish a combined build. Passing these
+checks is not an end-to-end test of Fabric or evidence that mods can run.
 
 ## Integration work
 
