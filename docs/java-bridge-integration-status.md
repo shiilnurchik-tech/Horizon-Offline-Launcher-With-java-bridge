@@ -67,8 +67,6 @@ checks this part on Linux and Windows; it does not publish a combined build.
 
 ## Current verification limits
 
-No combined build was attempted or published during this investigation. This environment
-has no Rust toolchain, and the GitHub Actions workflows API for this repository returned
-zero registered workflows; workflow availability/permissions need to be checked before
-promising a run. Do not label the existing offline-only workflow artifact as a combined
-build.
+No combined build was attempted or published. This environment has no Rust toolchain;
+GitHub Actions is used for the file-management checks. Do not label the existing
+offline-only workflow artifact as a combined build.
