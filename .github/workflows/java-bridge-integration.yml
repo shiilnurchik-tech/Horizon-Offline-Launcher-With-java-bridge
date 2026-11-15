@@ -36,6 +36,10 @@ jobs:
           workspaces: .
           key: java-bridge-client-content
           cache-on-failure: true
+      - name: Test mod biome and particle rendering support
+        run: |
+          cargo test --locked -p horizon-client-render --lib biome::mod_biomes::tests
+          cargo test --locked -p horizon-client-render --lib particles::mod_particles::tests
       - name: Check client library
         shell: bash
         run: |
@@ -111,6 +115,8 @@ jobs:
         run: cargo test --locked -p horizon-core --lib noise_seed
       - name: Test mod OBJ texture slots
         run: cargo test --locked -p horizon-assets --lib obj_slots
+      - name: Test streamed gameplay projection
+        run: cargo test --locked -p horizon-world --lib level::data::streaming::tests
       - name: Test mod block collisions
         run: cargo test --locked -p horizon-world --test mod_block_collision
       - name: Test world update hook

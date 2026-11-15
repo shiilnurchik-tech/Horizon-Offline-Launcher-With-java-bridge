@@ -1,7 +1,9 @@
 //! Biome colours from the pinned biome definitions and colormaps
 //! (`Biome.getGrassColor`/`getFoliageColor`/..., `BlockTintSources`).
+mod mod_biomes;
 use crate::Result;
 use horizon_core::{noise::SimplexNoise, position::BlockPos, random::LegacyRandom};
+pub use mod_biomes::mod_biomes;
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -295,6 +297,7 @@ impl Biomes {
                 &maps,
             ));
         }
+        mod_biomes::push_mod_biomes(root, &maps, &mut list)?;
         let index = list
             .iter()
             .enumerate()
