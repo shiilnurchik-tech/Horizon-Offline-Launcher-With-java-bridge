@@ -16,6 +16,35 @@ env:
   CARGO_TERM_COLOR: never
 
 jobs:
+  client-content-check:
+    name: Client content integration (Linux)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      HORIZON_BRIDGE_PLATFORM: source
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+          key: java-bridge-client-content
+          cache-on-failure: true
+      - name: Check client library
+        shell: bash
+        run: |
+          set +e
+          cargo check --locked -p horizon-client-lib --no-default-features 2>&1 | tee "$RUNNER_TEMP/client-check.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            detail=$(tail -n 25 "$RUNNER_TEMP/client-check.log")
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\n'/'%0A'}
+            echo "::error::$detail"
+          fi
+          exit "$status"
   jvm-check:
     name: Java Bridge crate (Linux)
     runs-on: ubuntu-22.04
@@ -61,6 +90,8 @@ jobs:
           exit "$status"
       - name: Test mod content declarations
         run: cargo test --locked -p horizon-mods --lib
+      - name: Test mod block collisions
+        run: cargo test --locked -p horizon-world --test mod_block_collision
       - name: Test in-memory and network framing
         run: cargo test --locked -p horizon-protocol --lib
       - name: Check Java path normalization

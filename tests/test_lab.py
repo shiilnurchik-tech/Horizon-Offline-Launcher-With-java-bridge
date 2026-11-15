@@ -181,6 +181,12 @@ class PublicationTests(unittest.TestCase):
                      "mods/horizon-lab/src/main/java/dev/horizonlab/HorizonLab.java"]:
             self.assertFalse(check_public_tree.prohibited(path), path)
         self.assertTrue(check_public_tree.prohibited("mods/horizon/src/main/java/net/minecraft/Client.java"))
+        bridge = "crates/horizon-jvm/java/"
+        self.assertFalse(check_public_tree.prohibited(bridge + "platform/dev/horizonlab/platform/HorizonClient.java"))
+        self.assertFalse(check_public_tree.prohibited(bridge + "fixtures/configmod/compile-only/com/terraformersmc/modmenu/api/ModMenuApi.java"))
+        for path in [bridge + "platform/net/minecraft/Client.java", bridge + "fixtures/compile-only/net/minecraft/Client.java",
+                     bridge + "platform/dev/horizonlab/../minecraft/Client.java"]:
+            self.assertTrue(check_public_tree.prohibited(path), path)
         for path in ["tools/JfrSummary.java", "tests/java/JfrFixture.java"]:
             self.assertFalse(check_public_tree.prohibited(path), path)
         for path in ["tools/Minecraft.java", "tests/java/Client.java", ".local/tools/JfrSummary.java"]:

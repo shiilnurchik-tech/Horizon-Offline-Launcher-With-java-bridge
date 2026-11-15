@@ -9,6 +9,11 @@ import sys
 PRIVATE_ROOTS = {".local", "decompiled", "minecraft", "assets", "run", "logs"}
 PRIVATE_EXTENSIONS = {".jar", ".class", ".jfr", ".hprof", ".java"}
 ORIGINAL_JDK_TOOLS = {"tools/JfrSummary.java", "tests/java/JfrFixture.java"}
+# Hand-written interfaces for the bridge's Mod Menu test fixture, never shipped as a mod.
+BRIDGE_FIXTURE_STUBS = {
+    "crates/horizon-jvm/java/fixtures/configmod/compile-only/com/terraformersmc/modmenu/api/ConfigScreenFactory.java",
+    "crates/horizon-jvm/java/fixtures/configmod/compile-only/com/terraformersmc/modmenu/api/ModMenuApi.java",
+}
 # The prepared folder's files in one file (crates/horizon-core/src/prepared_files.rs): Mojang's data.
 PRIVATE_NAMES = {"horizon-data.bin"}
 
@@ -18,9 +23,13 @@ def prohibited(path):
     # Original JDK-only tools are an exact allowlist; recovered game Java stays private.
     if path in ORIGINAL_JDK_TOOLS:
         return False
-    # Original Horizon mod sources may also be tracked.
-    if parsed.suffix == ".java" and path.startswith(("mods/horizon/src/", "mods/horizon-lab/src/")):
-        return not ("/dev/horizonlab/" in path)
+    # Original Horizon mod and bridge sources may also be tracked; game Java never may.
+    if path in BRIDGE_FIXTURE_STUBS:
+        return False
+    if parsed.suffix == ".java" and path.startswith(
+        ("mods/horizon/src/", "mods/horizon-lab/src/", "crates/horizon-jvm/java/")
+    ):
+        return not ("/dev/horizonlab/" in path and ".." not in parsed.parts)
     return (
         bool(parsed.parts and parsed.parts[0] in PRIVATE_ROOTS)
         or parsed.suffix.lower() in PRIVATE_EXTENSIONS
