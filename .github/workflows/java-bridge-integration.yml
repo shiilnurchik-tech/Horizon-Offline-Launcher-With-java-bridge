@@ -69,8 +69,12 @@ jobs:
           fi
           exit "$status"
   jvm-runtime:
-    name: JVM and Fabric fixture (Linux)
-    runs-on: ubuntu-22.04
+    name: JVM and Fabric fixture (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
     timeout-minutes: 30
     env:
       HORIZON_BRIDGE_PLATFORM: source
@@ -86,7 +90,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: .
-          key: java-bridge-runtime
+          key: java-bridge-runtime-${{ matrix.os }}
           cache-on-failure: true
       - name: Test embedded JVM and stand-in Fabric mod
         shell: bash
