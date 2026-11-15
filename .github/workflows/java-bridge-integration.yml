@@ -40,6 +40,7 @@ jobs:
         run: |
           cargo test --locked -p horizon-client-render --lib biome::mod_biomes::tests
           cargo test --locked -p horizon-client-render --lib particles::mod_particles::tests
+          cargo test --locked -p horizon-client-render --lib streaming::mod_tickets::tests
       - name: Check client library
         shell: bash
         run: |
@@ -61,6 +62,33 @@ jobs:
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
             detail=$(tail -n 25 "$RUNNER_TEMP/client-content-test.log")
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\n'/'%0A'}
+            echo "::error::$detail"
+          fi
+          exit "$status"
+  game-check:
+    name: Game binary integration (Linux)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+          key: java-bridge-game-check
+          cache-on-failure: true
+      - name: Check offline game binary
+        shell: bash
+        run: |
+          set +e
+          cargo check --locked -p horizon-client --no-default-features --bin horizon-client 2>&1 | tee "$RUNNER_TEMP/game-check.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            detail=$(tail -n 35 "$RUNNER_TEMP/game-check.log")
             detail=${detail//'%'/'%25'}
             detail=${detail//$'\n'/'%0A'}
             echo "::error::$detail"

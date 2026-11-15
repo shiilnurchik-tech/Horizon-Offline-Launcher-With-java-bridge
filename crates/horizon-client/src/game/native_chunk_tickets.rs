@@ -81,11 +81,7 @@ impl Game<'_> {
             self.levels.parked_streaming_mut(dim)
         };
         if let Some(streaming) = streaming {
-            if !held {
-                streaming.mod_forced.remove(&key);
-            } else if streaming.mod_forced.insert(key) {
-                streaming.rank_forced(key.0, key.1, key.0, key.1);
-            }
+            streaming.set_native_ticket(key, held);
         }
         true
     }
@@ -96,9 +92,7 @@ impl Game<'_> {
             return;
         };
         for &key in level.keys() {
-            if self.streaming.mod_forced.insert(key) {
-                self.streaming.rank_forced(key.0, key.1, key.0, key.1);
-            }
+            self.streaming.set_native_ticket(key, true);
         }
     }
 

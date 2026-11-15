@@ -2,6 +2,7 @@
 //! around the player, closest first. The game thread owns the world and only
 //! hands immutable `Arc` snapshots to workers; results carry a sequence number
 //! so stale work is dropped.
+mod mod_tickets;
 use crate::fast_hash::{FxHashMap, FxHashSet};
 use crate::section_mask::SectionMask;
 use crate::{
@@ -507,6 +508,8 @@ pub struct Streaming {
     /// kept loaded and ticking as forced ones are, but neither saved with
     /// them nor listed by `/forceload`.
     pub mod_forced: HashSet<(i32, i32)>,
+    /// Separate ownership keeps a Java release from dropping a native mod's ticket, or vice versa.
+    mod_ticket_owners: mod_tickets::TicketOwners,
     /// No work is scheduled while paused (title screen).
     pub paused: bool,
     /// Dimension flags: sky light, Nether face shading.
@@ -1095,6 +1098,7 @@ impl Streaming {
             radius: 8,
             forced: HashSet::new(),
             mod_forced: HashSet::new(),
+            mod_ticket_owners: Default::default(),
             paused: false,
             sky_light: true,
             nether_shading: false,
