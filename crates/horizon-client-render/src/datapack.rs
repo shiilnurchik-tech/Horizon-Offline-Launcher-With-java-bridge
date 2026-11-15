@@ -1,6 +1,7 @@
 //! Data packs (`<world>/datapacks`: folders and zips with `pack.mcmeta`) and
 //! the parts of them commands use: `.mcfunction` functions (with macros and
 //! line continuation), function tags and predicates.
+mod mod_jars;
 use crate::zip::Zip;
 use horizon_world::{
     nbt::Tag,
@@ -16,6 +17,8 @@ pub struct DataPack {
     /// `file/<name>` in `/datapack` and level.dat.
     pub id: String,
     source: Source,
+    /// Restrict worldgen imports to structure-related files.
+    structures_only: bool,
 }
 enum Source {
     Dir(PathBuf),
@@ -134,6 +137,7 @@ impl DataPack {
         DataPack {
             id: "vanilla".into(),
             source: Source::Dir(root.to_path_buf()),
+            structures_only: false,
         }
     }
 }
@@ -154,6 +158,7 @@ pub fn discover_folder(dir: &Path) -> Vec<DataPack> {
             packs.push(DataPack {
                 id: format!("file/{name}"),
                 source: Source::Dir(path),
+                structures_only: false,
             });
         } else if name.ends_with(".zip")
             && let Ok(z) = Zip::open(&path)
@@ -162,6 +167,7 @@ pub fn discover_folder(dir: &Path) -> Vec<DataPack> {
             packs.push(DataPack {
                 id: format!("file/{name}"),
                 source: Source::Zip(Box::new(z)),
+                structures_only: false,
             });
         }
     }
@@ -184,6 +190,7 @@ pub fn feature_packs(resources: &Path) -> Vec<DataPack> {
             packs.push(DataPack {
                 id: e.file_name().to_string_lossy().into_owned(),
                 source: Source::Dir(path),
+                structures_only: false,
             });
         }
     }
@@ -896,6 +903,9 @@ pub fn worldgen_overrides(
     let mut warnings = Vec::new();
     for pack in packs {
         for file in pack.list_kinds(&overrides::PACK_KINDS) {
+            if pack.skips(&file) {
+                continue;
+            }
             if let Some(id) = overrides::template_id(&file) {
                 match pack.read(&file) {
                     Some(nbt) => out.set_template(&id, nbt),

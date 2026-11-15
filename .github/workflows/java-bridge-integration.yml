@@ -41,6 +41,7 @@ jobs:
           cargo test --locked -p horizon-client-render --lib biome::mod_biomes::tests
           cargo test --locked -p horizon-client-render --lib particles::mod_particles::tests
           cargo test --locked -p horizon-client-render --lib streaming::mod_tickets::tests
+          cargo test --locked -p horizon-client-render --lib datapack::mod_jars::tests
       - name: Check client library
         shell: bash
         run: |
