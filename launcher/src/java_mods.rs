@@ -1,6 +1,6 @@
 //! The game folder's Java mods (`mods-java/`): Fabric mods a game built with Java mods runs.
 //! Ported from iaxivers/horizon-java-bridge at 99e8ba80497e0515909af4601a4b078020034d2c.
-//! This module manages files only; the Java bridge client is not integrated yet.
+//! This module manages files; an imported offline Java Bridge client can run them via `play --fabric`.
 use std::io::Read;
 use std::path::{Path, PathBuf};
 

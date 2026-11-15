@@ -38,6 +38,7 @@ fn manage_fabric_jars_and_explain_how_to_enable_the_bridge() {
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
         let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
         assert_eq!(result["bridge_integrated"], false);
+        assert_eq!(result["fabric_cli_available"], true);
         assert_eq!(result["mods"][0]["id"], "example");
     }
     let output = run(&root, &["java-mods", "remove", "example"]);

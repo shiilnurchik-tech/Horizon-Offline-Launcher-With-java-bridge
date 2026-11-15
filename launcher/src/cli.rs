@@ -1858,7 +1858,7 @@ fn java_mods(action: JavaModsCmd, as_json: bool) -> Result<(), String> {
             "file": m.file, "id": m.id, "name": m.name, "version": m.version,
             "size": m.size, "wrong_minecraft": m.wrong_minecraft,
         })).collect();
-        json(serde_json::json!({ "bridge_integrated": false, "mods": mods }));
+        json(serde_json::json!({ "bridge_integrated": false, "fabric_cli_available": true, "mods": mods }));
     } else {
         for m in mods {
             println!("{} ({})", m.title(), m.file);
