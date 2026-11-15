@@ -104,6 +104,7 @@ pub mod ticks;
 
 mod bonemeal;
 mod buckets;
+mod caller_precipitation;
 mod creaking;
 mod falling;
 mod feature_world;
@@ -363,6 +364,29 @@ pub trait LevelAccess {
     fn allow_spread(&self, _kind: Spread, _from: BlockPos, _to: BlockPos) -> bool {
         true
     }
+    /// Whether `state` holds a fluid another engine runs: a Java mod's fluid (its block is
+    /// carried with water's or lava's template, but it flows by its own code, in the mods'
+    /// mirror). Horizon's fluid ticks, lava's random ticks and conversions leave it, and a
+    /// fluid tick it would schedule there is told to [`Self::foreign_fluid_changed`]
+    /// instead. The default: none.
+    fn foreign_fluid(&self, _state: BlockStateId) -> bool {
+        false
+    }
+    /// A foreign fluid at `pos` was placed or a neighbour of it changed: where vanilla's
+    /// `LiquidBlock` schedules its fluid tick, the engine running it does.
+    fn foreign_fluid_changed(&mut self, _pos: BlockPos) {}
+    /// `LiquidBlock.shouldSpreadLiquid` of the lava at `pos` belongs to another engine (a Java
+    /// mod's injection at its head: its own fluid interactions, which replace lava's): true
+    /// when that engine took it, and runs it (its conversions) at the end of the block tick.
+    /// Horizon then makes no conversion, and schedules the lava's tick as vanilla does when
+    /// there is none. The default: never.
+    fn liquid_interaction(&mut self, _pos: BlockPos) -> bool {
+        false
+    }
+    /// The neighbours of `source` are about to be updated (`Level.updateNeighborsAt`,
+    /// `BlockState.updateNeighbourShapes`): blocks another engine runs (Java mods') hear it
+    /// there, as vanilla's own neighbour updater would tell them. The default: none.
+    fn observe_neighbours_updated(&self, _source: BlockPos) {}
     fn allow_fluid_level_change(
         &self,
         _pos: BlockPos,

@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: java-bridge-integration-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   HORIZON_TELEMETRY_URL: 'off'
   HORIZON_LAUNCHER_NO_SELF_UPDATE: '1'
@@ -40,6 +44,19 @@ jobs:
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
             detail=$(tail -n 25 "$RUNNER_TEMP/client-check.log")
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\n'/'%0A'}
+            echo "::error::$detail"
+          fi
+          exit "$status"
+      - name: Test client content integration
+        shell: bash
+        run: |
+          set +e
+          cargo test --locked -p horizon-client-lib --no-default-features --lib mod_content::tests 2>&1 | tee "$RUNNER_TEMP/client-content-test.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            detail=$(tail -n 25 "$RUNNER_TEMP/client-content-test.log")
             detail=${detail//'%'/'%25'}
             detail=${detail//$'\n'/'%0A'}
             echo "::error::$detail"
@@ -96,6 +113,8 @@ jobs:
         run: cargo test --locked -p horizon-assets --lib obj_slots
       - name: Test mod block collisions
         run: cargo test --locked -p horizon-world --test mod_block_collision
+      - name: Test world update hook
+        run: cargo test --locked -p horizon-world --lib a_set_block_names_the_position_whose_neighbours_it_updates
       - name: Test in-memory and network framing
         run: cargo test --locked -p horizon-protocol --lib
       - name: Check Java path normalization
