@@ -55,7 +55,7 @@ fn executable(dir: &Path, name: &str) -> PathBuf {
 
 /// `fs::canonicalize`, without the `\\?\` prefix it gives a Windows drive path: the
 /// home goes into `JAVA_HOME` and the PATH of preparers, whose lookups don't take it.
-fn real_path(path: PathBuf) -> PathBuf {
+pub fn real_path(path: PathBuf) -> PathBuf {
     let real = fs::canonicalize(&path).unwrap_or(path);
     if cfg!(windows) {
         without_verbatim(real)
@@ -64,8 +64,15 @@ fn real_path(path: PathBuf) -> PathBuf {
     }
 }
 
-fn without_verbatim(path: PathBuf) -> PathBuf {
-    match path.to_str().and_then(|s| s.strip_prefix(r"\\?\")) {
+/// Convert Windows verbatim drive and UNC paths to the form accepted by Java tools.
+pub fn without_verbatim(path: PathBuf) -> PathBuf {
+    let Some(s) = path.to_str() else {
+        return path;
+    };
+    if let Some(share) = s.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{share}"));
+    }
+    match s.strip_prefix(r"\\?\") {
         Some(rest) if rest.as_bytes().get(1) == Some(&b':') => PathBuf::from(rest),
         _ => path,
     }
@@ -435,9 +442,13 @@ mod tests {
             without_verbatim(PathBuf::from(format!(r"\\?\{jdk}"))),
             PathBuf::from(jdk)
         );
-        // A UNC share keeps its verbatim form: stripping it would leave no valid path.
         let unc = r"\\?\UNC\server\jdk\bin\javac.exe";
-        assert_eq!(without_verbatim(PathBuf::from(unc)), PathBuf::from(unc));
+        assert_eq!(
+            without_verbatim(PathBuf::from(unc)),
+            PathBuf::from(r"\\server\jdk\bin\javac.exe")
+        );
+        let volume = r"\\?\Volume{0b1c}\jdk";
+        assert_eq!(without_verbatim(PathBuf::from(volume)), PathBuf::from(volume));
         assert_eq!(
             without_verbatim(PathBuf::from("/usr/lib/jvm/bin/javac")),
             PathBuf::from("/usr/lib/jvm/bin/javac")

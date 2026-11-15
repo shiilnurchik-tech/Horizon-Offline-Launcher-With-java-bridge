@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          cargo check -p horizon-jvm 2>&1 | tee "$RUNNER_TEMP/jvm-check.log"
+          cargo check --locked -p horizon-jvm 2>&1 | tee "$RUNNER_TEMP/jvm-check.log"
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
             detail=$(tail -n 25 "$RUNNER_TEMP/jvm-check.log")
@@ -46,6 +46,8 @@ jobs:
             echo "::error::$detail"
           fi
           exit "$status"
+      - name: Check Java path normalization
+        run: cargo test --locked -p horizon-prepare --lib verbatim_drive_paths_lose_their_prefix
       - name: Report generated lockfile changes
         if: always()
         shell: bash
