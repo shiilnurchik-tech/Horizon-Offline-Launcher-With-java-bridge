@@ -13,6 +13,7 @@ permissions:
 env:
   HORIZON_TELEMETRY_URL: 'off'
   HORIZON_LAUNCHER_NO_SELF_UPDATE: '1'
+  CARGO_TERM_COLOR: never
 
 jobs:
   launcher-file-management:
@@ -46,7 +47,7 @@ jobs:
           cargo test --release --locked --lib java_mods::tests 2>&1 | tee "$RUNNER_TEMP/java-mods-test.log"
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            detail=$(tail -n 80 "$RUNNER_TEMP/java-mods-test.log")
+            detail=$(tail -n 20 "$RUNNER_TEMP/java-mods-test.log")
             detail=${detail//'%'/'%25'}
             detail=${detail//$'\n'/'%0A'}
             detail=${detail//$'\r'/'%0D'}
