@@ -32,6 +32,7 @@ pub const DESTRUCTIVE: &[&str] = &[
     "remove",
     "modpack remove",
     "mods remove",
+    "java-mods remove",
     "servers forget",
     "account sign-out",
     "data delete",

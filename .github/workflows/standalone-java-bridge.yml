@@ -140,7 +140,13 @@ jobs:
         run: bash "$GITHUB_WORKSPACE/tools/ci/apt_install.sh" libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libfontconfig-dev libvulkan-dev libasound2-dev
       - name: Generate launcher command reference
         if: runner.os == 'Linux'
-        run: HORIZON_WRITE_DOCS=1 cargo test --release --locked --bin horizon-launcher the_launcher_reference
+        run: |
+          HORIZON_WRITE_DOCS=1 cargo test --release --locked --bin horizon-launcher the_launcher_reference
+          detail=$(git -C "$GITHUB_WORKSPACE" diff -- docs/launcher-commands.md)
+          detail=${detail//'%'/'%25'}
+          detail=${detail//$'\n'/'%0A'}
+          detail=${detail//$'\r'/'%0D'}
+          echo "::notice::$detail"
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with:
