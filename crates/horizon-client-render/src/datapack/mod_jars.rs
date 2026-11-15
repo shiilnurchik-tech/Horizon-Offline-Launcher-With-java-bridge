@@ -62,6 +62,28 @@ fn is_structure_file(file: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::super::*;
+    #[test]
+    fn jar_without_mcmeta_is_read_as_data_pack() {
+        use std::io::Write;
+        let dir = std::env::temp_dir().join(format!("hz-datapack-jar-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("example.jar");
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+        zip.start_file("data/example/worldgen/structure/house.json", zip::write::SimpleFileOptions::default()).unwrap();
+        zip.write_all(b"house").unwrap();
+        zip.start_file("data/example/structure/house.nbt", zip::write::SimpleFileOptions::default()).unwrap();
+        zip.write_all(b"template").unwrap();
+        zip.finish().unwrap();
+        let pack = DataPack::archive("mod/example.jar", &path).unwrap().structures_only();
+        let (overrides, warnings) = worldgen_overrides(&[&pack], |_| true);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(overrides.entries("structures").map(|(id, _)| id).collect::<Vec<_>>(), ["example:house"]);
+        assert_eq!(&**overrides.templates().get("example:house").unwrap(), b"template");
+        drop(pack);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
     /// A Java mod's jar as a structures-only pack (a Towns and Towers): its new structures,
     /// their sets and biome tags reach the generator, its land (biomes, noise, dimensions)
     /// does not.

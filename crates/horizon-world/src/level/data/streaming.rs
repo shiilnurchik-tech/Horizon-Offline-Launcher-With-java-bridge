@@ -19,9 +19,9 @@ impl Behaviours {
 }
 
 /// `gameplay-facts.json`'s fields the behaviour tables read ([`GameplayStateSource`]), streamed
-/// from the file: the rest of each row (outline edges, the other sounds: most of the file) is
-/// skipped as it is read. As a JSON tree the file took ten times its size (3.4 GB for 208k
-/// states, a modded pack's), though the tables keep only tens of MB.
+/// from the file: each row is parsed temporarily and discarded after its fields are projected.
+/// As a retained JSON tree the file took ten times its size (3.4 GB for 208k states, a modded
+/// pack's), though the tables keep only tens of MB.
 pub(super) fn read_gameplay(path: &Path) -> io::Result<GameplayFile> {
     let file = io::BufReader::with_capacity(1 << 20, std::fs::File::open(path)?);
     serde_json::from_reader(file).map_err(|e| invalid(format!("{}: {e}", path.display())))
