@@ -958,7 +958,7 @@ enum Cmd {
         #[command(subcommand)]
         action: Option<JavaCmd>,
     },
-    /// Manage Fabric mod files (the Java Bridge client is not integrated yet)
+    /// Manage Fabric mod files for the offline Java Bridge client
     JavaMods {
         #[command(subcommand)]
         action: Option<JavaModsCmd>,

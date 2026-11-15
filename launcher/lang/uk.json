@@ -1253,5 +1253,8 @@
   "Found by itself in your launcher's folder. Or pick the {version}.jar file.": "Знайдено самостійно в теці вашого лаунчера. Або виберіть файл {version}.jar.",
   "Minecraft jar": "Jar Minecraft",
   "This build of the launcher has no Microsoft sign-in (HORIZON_MSA_CLIENT_ID).": "У цій збірці лаунчера немає входу Microsoft (HORIZON_MSA_CLIENT_ID).",
-  "Offline launcher {version}": "Офлайн-лаунчер {version}"
+  "Offline launcher {version}": "Офлайн-лаунчер {version}",
+  "Fabric needs an imported offline Java Bridge client. Import the Java client build first.": "Fabric needs an imported offline Java Bridge client. Import the Java client build first.",
+  "Offline Fabric mode: ownership is not checked. Java mods can access your files and accounts; run only mods you trust.": "Offline Fabric mode: ownership is not checked. Java mods can access your files and accounts; run only mods you trust.",
+  "To run these mods, import the offline Java Bridge client and use play --fabric.": "To run these mods, import the offline Java Bridge client and use play --fabric."
 }

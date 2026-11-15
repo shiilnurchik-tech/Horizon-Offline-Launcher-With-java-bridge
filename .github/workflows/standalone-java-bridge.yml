@@ -5,7 +5,7 @@ name: Offline launcher and Java Bridge beta
 on:
   push:
     branches: ['arena/**']
-    paths: ['.github/workflows/standalone-java-bridge.yml']
+    paths: ['.github/workflows/standalone-java-bridge.yml', 'integration/**', 'launcher/**']
   workflow_dispatch:
 
 permissions:
