@@ -7,6 +7,9 @@ use crate::{
 use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
 use std::cell::RefCell;
 
+mod wide;
+pub use wide::wide_header;
+
 /// Frames are at most three VarInt bytes long (21 bits).
 pub const MAX_FRAME: usize = (1 << 21) - 1;
 /// CompressionDecoder.MAXIMUM_UNCOMPRESSED_LENGTH.
@@ -22,6 +25,20 @@ pub fn encode(body: &[u8], threshold: Option<usize>) -> Result<Vec<u8>> {
 /// What [`encode`] puts after the length prefix: the same for every
 /// connection with the same threshold.
 pub fn contents(body: &[u8], threshold: Option<usize>) -> Result<Vec<u8>> {
+    let inner = unbounded_contents(body, threshold)?;
+    if inner.len() > MAX_FRAME {
+        return Err(Error::new(format!(
+            "packet too large: {} bytes",
+            inner.len()
+        )));
+    }
+    Ok(inner)
+}
+
+/// [`contents`] without the 21-bit frame limit: an in-memory connection's
+/// (vanilla's LocalChannel passes packets as objects, with no frame at all), read
+/// back with [`wide_header`].
+pub fn unbounded_contents(body: &[u8], threshold: Option<usize>) -> Result<Vec<u8>> {
     let inner = match threshold {
         None => body.to_vec(),
         Some(t) if body.len() < t => {
@@ -39,12 +56,6 @@ pub fn contents(body: &[u8], threshold: Option<usize>) -> Result<Vec<u8>> {
             v
         }
     };
-    if inner.len() > MAX_FRAME {
-        return Err(Error::new(format!(
-            "packet too large: {} bytes",
-            inner.len()
-        )));
-    }
     Ok(inner)
 }
 

@@ -47,7 +47,20 @@ jobs:
           fi
           exit "$status"
       - name: Test the Java mod content porter
-        run: cargo test --locked -p horizon-port-pack --lib
+        shell: bash
+        run: |
+          set +e
+          cargo test --locked -p horizon-port-pack --lib 2>&1 | tee "$RUNNER_TEMP/porter-test.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            detail=$(tail -n 25 "$RUNNER_TEMP/porter-test.log")
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\n'/'%0A'}
+            echo "::error::$detail"
+          fi
+          exit "$status"
+      - name: Test in-memory and network framing
+        run: cargo test --locked -p horizon-protocol --lib
       - name: Check Java path normalization
         run: cargo test --locked -p horizon-prepare --lib verbatim_drive_paths_lose_their_prefix
       - name: Report generated lockfile changes
