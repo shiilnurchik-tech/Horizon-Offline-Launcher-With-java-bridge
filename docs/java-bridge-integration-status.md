@@ -79,9 +79,10 @@ Java Bridge client plus `integration/upstream-offline-java-mods.patch`. It expli
 with `play --fabric`; normal play does not enable the bridge. The fork's offline mode does
 not verify ownership and is distinct from the upstream owner's gate. Both programs are built
 from source; Minecraft, Fabric and third-party mods are not bundled. See
-`integration/README-ru.txt` for usage and security warnings. The GUI does not yet offer a
-Fabric toggle, and the `java-mods` JSON field `bridge_integrated` remains false because this
-is an experimental external client, not full integration into the offline game.
+`integration/README-ru.txt` for usage and security warnings. The GUI's Mods tab offers an
+instance-specific Fabric opt-in, client import, and JAR management; it still needs a compatible
+external client. The `java-mods` JSON field `bridge_integrated` remains false because this is
+an experimental external client, not full integration into the offline game.
 
 The patch's opt-in and upstream owner gate tests passed on Linux and Windows; the patched
 client compiled on both in Actions run 43735245210. A launcher Linux test in that run failed

@@ -18,9 +18,9 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      BUILD_RUN: '43737613557'
-      BUILD_COMMIT: '909b9bcc6aa6f657bc7b431864d0efde73e63661'
-      RELEASE_TAG: 'java-bridge-beta-2026.11.15'
+      BUILD_RUN: '43741554974'
+      BUILD_COMMIT: 'c9a552bffaf7f001b329461e0d29af041403c64c'
+      RELEASE_TAG: 'java-bridge-beta-2026.11.15-ui'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,5 +58,5 @@ jobs:
           test -s offline-java-bridge-beta-linux-x64.tar.gz
           test -s offline-java-bridge-beta-windows-x64.zip
           sha256sum offline-java-bridge-beta-linux-x64.tar.gz offline-java-bridge-beta-windows-x64.zip > SHA256SUMS.txt
-          gh release create "$RELEASE_TAG" --target "$BUILD_COMMIT" --title 'Horizon Offline + Java Bridge — beta' --notes-file ../integration/release-notes-2026.11.15.md --prerelease --draft offline-java-bridge-beta-linux-x64.tar.gz offline-java-bridge-beta-windows-x64.zip SHA256SUMS.txt
+          gh release create "$RELEASE_TAG" --target "$BUILD_COMMIT" --title 'Horizon Offline + Java Bridge — beta с интерфейсом Fabric' --notes-file ../integration/release-notes-ui.md --prerelease --draft offline-java-bridge-beta-linux-x64.tar.gz offline-java-bridge-beta-windows-x64.zip SHA256SUMS.txt
           gh release edit "$RELEASE_TAG" --draft=false --latest=false
