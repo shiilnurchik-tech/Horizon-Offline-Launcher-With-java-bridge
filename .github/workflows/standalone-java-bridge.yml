@@ -1,0 +1,149 @@
+# These artifacts are two separate programs, not a tested integrated release.
+# The upstream Java client is built verbatim from a pinned commit; the offline
+# launcher is built from this branch. No Minecraft or Fabric binaries are bundled.
+name: Standalone offline launcher and upstream Java client
+
+on:
+  push:
+    branches: ['arena/**']
+    paths: ['.github/workflows/standalone-java-bridge.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+  HORIZON_TELEMETRY_URL: 'off'
+
+jobs:
+  bridge-client:
+    name: Upstream Java client (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-22.04
+            executable: horizon-client
+          - name: windows-x64
+            os: windows-latest
+            executable: horizon-client.exe
+            rustflags: -C target-feature=+crt-static
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      HORIZON_BRIDGE_PLATFORM: source
+      RUSTFLAGS: ${{ matrix.rustflags }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: bridge
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: iaxivers/horizon-java-bridge
+          ref: 99e8ba80497e0515909af4601a4b078020034d2c
+          path: bridge
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: bridge
+          key: standalone-java-client-${{ matrix.name }}
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libfontconfig-dev libvulkan-dev
+      - name: Build upstream client with Java mods
+        run: |
+          set +e
+          cargo build --release --locked -p horizon-client --features java-mods --bin horizon-client 2>&1 | tee "$RUNNER_TEMP/bridge-build.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            detail=$(tail -n 35 "$RUNNER_TEMP/bridge-build.log")
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\n'/'%0A'}
+            detail=${detail//$'\r'/'%0D'}
+            echo "::error::$detail"
+          fi
+          exit "$status"
+      - name: Check and stage the standalone client
+        run: |
+          set -euo pipefail
+          binary="target/release/${{ matrix.executable }}"
+          "$binary" --help | grep -q -- '--java-mods'
+          python tools/check_imports.py "$binary"
+          test ! -e .local/bridge
+          mkdir -p ../artifact-java
+          cp "$binary" LICENSE THIRD_PARTY_NOTICES.md ../artifact-java/
+          printf 'Upstream iaxivers/horizon-java-bridge commit 99e8ba80497e0515909af4601a4b078020034d2c\nBuilt with java-mods, HORIZON_BRIDGE_PLATFORM=source.\nStandalone upstream client: not yet integrated with the offline launcher.\nRequires compatible prepared game resources, Java 25 JDK, Fabric dependencies, and upstream owner verification.\nMinecraft, Fabric and mod files are not included.\n' > ../artifact-java/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: standalone-java-client-${{ matrix.name }}
+          path: artifact-java/
+          if-no-files-found: error
+          retention-days: 7
+
+  offline-launcher:
+    name: Offline launcher (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-22.04
+            executable: horizon-launcher
+          - name: windows-x64
+            os: windows-latest
+            executable: horizon-launcher.exe
+            rustflags: -C target-feature=+crt-static
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      RUSTFLAGS: ${{ matrix.rustflags }}
+      HORIZON_LAUNCHER_NO_SELF_UPDATE: '1'
+    defaults:
+      run:
+        shell: bash
+        working-directory: launcher
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: launcher
+          key: standalone-offline-launcher-${{ matrix.name }}
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: bash "$GITHUB_WORKSPACE/tools/ci/apt_install.sh" libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libfontconfig-dev libvulkan-dev libasound2-dev
+      - name: Build offline launcher
+        run: |
+          set +e
+          cargo build --release --locked 2>&1 | tee "$RUNNER_TEMP/launcher-build.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            detail=$(tail -n 35 "$RUNNER_TEMP/launcher-build.log")
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\n'/'%0A'}
+            detail=${detail//$'\r'/'%0D'}
+            echo "::error::$detail"
+          fi
+          exit "$status"
+      - name: Check and stage launcher
+        run: |
+          set -euo pipefail
+          binary="target/release/${{ matrix.executable }}"
+          "$binary" --version
+          mkdir -p ../artifact-launcher
+          cp "$binary" ../artifact-launcher/
+          printf 'Offline launcher built from this workflow run.\nNot yet integrated with the standalone Java client.\nThe launcher will not self-update. Minecraft files are not included.\n' > ../artifact-launcher/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-launcher-${{ matrix.name }}
+          path: artifact-launcher/
+          if-no-files-found: error
+          retention-days: 7
