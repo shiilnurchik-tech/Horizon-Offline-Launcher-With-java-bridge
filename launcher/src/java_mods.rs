@@ -336,7 +336,7 @@ fn held_open(path: &Path) -> bool {
             .read(true)
             .share_mode(0)
             .open(path);
-        matches!(alone, Err(e) if crate::java_variant::in_use(&e))
+        matches!(alone, Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied || matches!(e.raw_os_error(), Some(32 | 33)))
     }
     #[cfg(not(windows))]
     {
