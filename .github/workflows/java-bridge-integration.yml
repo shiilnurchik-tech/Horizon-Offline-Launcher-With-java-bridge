@@ -59,6 +59,8 @@ jobs:
             echo "::error::$detail"
           fi
           exit "$status"
+      - name: Test mod content declarations
+        run: cargo test --locked -p horizon-mods --lib
       - name: Test in-memory and network framing
         run: cargo test --locked -p horizon-protocol --lib
       - name: Check Java path normalization
