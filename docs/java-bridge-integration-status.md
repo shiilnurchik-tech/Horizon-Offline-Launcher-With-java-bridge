@@ -87,8 +87,9 @@ The patch's opt-in and upstream owner gate tests passed on Linux and Windows; th
 client compiled on both in Actions run 43735245210. A launcher Linux test in that run failed
 on translation coverage, fixed subsequently. The full Linux launcher test passed in run
 43736556798 after generating the stale CLI reference in the runner; the reference has since
-been updated and CI now checks it without accepting differences. A later run is in progress.
-No real game
+been updated and CI now checks it without accepting differences. Run 43737613557 passed all
+four Linux/Windows build jobs and both beta bundle jobs; run 43737613525 passed the bridge,
+client, launcher file-management and JVM fixture checks. No real game
 launch or real Fabric mod has been verified: legal user-supplied Minecraft files, a matching
 prepared version, Java 25 JDK and runtime dependencies are still required. Do not describe
 these artifacts as a verified working game or signed release.
