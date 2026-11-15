@@ -333,6 +333,7 @@ impl Launcher {
 
     /// The Mods tab: its buttons (beside the tabs) and the list.
     pub(super) fn instance_mods_tab(&mut self, cx: &mut Context<Self>) -> (Div, Div) {
+        let fabric = self.fabric_panel(cx);
         let t = self.theme;
         let n = t.night;
         let busy = self.mods.busy.is_some();
@@ -456,6 +457,7 @@ impl Launcher {
                 .flex()
                 .flex_col()
                 .gap(px(12.))
+                .children(fabric)
                 .children(self.mods_busy_plate())
                 .child(card),
         )

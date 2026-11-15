@@ -10,6 +10,21 @@ pub const DIR: &str = "mods-java";
 /// excludes it can't start (Fabric refuses the whole set).
 pub const MINECRAFT: &str = "26.3";
 
+/// Configure an explicitly opted-in offline Fabric launch. Refuse rather than silently start
+/// a normal release without mods, which could damage a modded world. This only checks that the
+/// client was imported; the player must pick this fork's compatible Java Bridge client.
+pub fn configure_launch(cmd: &mut std::process::Command, tag: &str, enabled: bool) -> Result<(), String> {
+    if !enabled {
+        return Ok(());
+    }
+    if !crate::build_import::is_imported(tag) {
+        return Err(crate::i18n::tr("Fabric needs an imported offline Java Bridge client. Import the Java client build first.").to_string());
+    }
+    cmd.env_remove("HORIZON_JAVA_MODS");
+    cmd.args(["--java-mods", "--offline-java-mods"]);
+    Ok(())
+}
+
 /// One jar of `mods-java/`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JavaMod {
@@ -421,6 +436,31 @@ fn report_line(line: &str) -> Option<Failure> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn fabric_setting_is_off_by_default_and_round_trips_per_instance() {
+        let old: crate::instances::Meta = serde_json::from_str("{}").unwrap();
+        assert!(!old.offline_fabric);
+        let mut chosen = old;
+        chosen.offline_fabric = true;
+        let json = serde_json::to_string(&chosen).unwrap();
+        assert!(serde_json::from_str::<crate::instances::Meta>(&json).unwrap().offline_fabric);
+    }
+
+    #[test]
+    fn fabric_launch_is_explicit_and_refuses_non_imported_builds() {
+        use super::configure_launch;
+        use std::process::Command;
+        let mut normal = Command::new("game");
+        configure_launch(&mut normal, "release", false).unwrap();
+        assert_eq!(normal.get_args().count(), 0);
+        let mut refused = Command::new("game");
+        assert!(configure_launch(&mut refused, "release", true).is_err());
+        assert_eq!(refused.get_args().count(), 0);
+        let mut opted_in = Command::new("game");
+        configure_launch(&mut opted_in, "imported-test", true).unwrap();
+        assert_eq!(opted_in.get_args().collect::<Vec<_>>(), ["--java-mods", "--offline-java-mods"]);
+        assert!(opted_in.get_envs().any(|(k, v)| k == "HORIZON_JAVA_MODS" && v.is_none()));
+    }
     use super::*;
 
     fn jar(path: &Path, meta: Option<&str>) {

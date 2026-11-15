@@ -1256,5 +1256,15 @@
   "Offline launcher {version}": "Offline launcher {version}",
   "Fabric needs an imported offline Java Bridge client. Import the Java client build first.": "Fabric needs an imported offline Java Bridge client. Import the Java client build first.",
   "Offline Fabric mode: ownership is not checked. Java mods can access your files and accounts; run only mods you trust.": "Offline Fabric mode: ownership is not checked. Java mods can access your files and accounts; run only mods you trust.",
-  "To run these mods, import the offline Java Bridge client and use play --fabric.": "To run these mods, import the offline Java Bridge client and use play --fabric."
+  "To run these mods, import the offline Java Bridge client and use play --fabric.": "To run these mods, import the offline Java Bridge client and use play --fabric.",
+  "Add Fabric mods…": "Add Fabric mods…",
+  "Added {count} Fabric mods.": "Added {count} Fabric mods.",
+  "Fabric mods (experimental)": "Fabric mods (experimental)",
+  "Import Java Bridge client…": "Import Java Bridge client…",
+  "Import the Java Bridge client from the beta archive before enabling Fabric.": "Import the Java Bridge client from the beta archive before enabling Fabric.",
+  "Imported client selected; make sure it is this beta's Java Bridge client.": "Imported client selected; make sure it is this beta's Java Bridge client.",
+  "Install a Horizon version and prepare it with your Minecraft 26.3 files first. JDK 25 and a first-time internet connection may be needed.": "Install a Horizon version and prepare it with your Minecraft 26.3 files first. JDK 25 and a first-time internet connection may be needed.",
+  "Java Bridge client imported. Turn on Fabric below.": "Java Bridge client imported. Turn on Fabric below.",
+  "Minecraft version required: {version}": "Minecraft version required: {version}",
+  "Offline Fabric does not verify ownership. Java mods can access your files and accounts. Use only trusted mods; back up worlds.": "Offline Fabric does not verify ownership. Java mods can access your files and accounts. Use only trusted mods; back up worlds."
 }

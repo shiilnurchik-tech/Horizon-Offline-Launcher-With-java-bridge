@@ -41,6 +41,7 @@ mod instance_icons;
 mod instance_mods;
 mod instances_page;
 mod internet;
+mod java_mods_page;
 mod language_page;
 mod launch_page;
 mod line_edit;
@@ -263,6 +264,9 @@ struct Launcher {
     /// and why the last one failed.
     importing_build: bool,
     import_error: Option<String>,
+    /// Instance for a Java Bridge client import, kept even if the player switches pages.
+    importing_java_for: Option<String>,
+    java_mods_page: java_mods_page::State,
     /// Native mods (`native_mods`, on the Mods page): the build's step while it runs, why it
     /// failed, and the warning before a build while it is open, with the mods it names.
     native_step: Option<String>,
@@ -617,6 +621,8 @@ impl Launcher {
             install_error: None,
             importing_build: false,
             import_error: None,
+            importing_java_for: None,
+            java_mods_page: Default::default(),
             native_step: None,
             native_started: None,
             native_done: None,
@@ -1279,6 +1285,12 @@ impl Launcher {
                         let instance = run
                             .as_ref()
                             .and_then(|id| instances::list().into_iter().find(|i| &i.id == id));
+                        let fabric = instance.as_ref().is_some_and(|i| i.java.is_none() && i.offline_fabric);
+                        if let Err(e) = horizon_launcher::java_mods::configure_launch(&mut cmd, &tag, fabric) {
+                            self.client_error = Some(e);
+                            account::discard_unread_sessions();
+                            continue;
+                        }
                         self.client_vars = instance
                             .as_ref()
                             .map(|i| i.vars(cmd.get_program()))
@@ -1371,10 +1383,27 @@ impl Launcher {
                 Msg::Imported(result) => {
                     self.importing_build = false;
                     self.installed = backend::installed();
+                    let java_for = self.importing_java_for.take();
                     match result {
                         // `build_import::import` saved the selection; this keeps the window's copy.
-                        Ok(tag) => self.settings.selected = Some(tag),
-                        Err(e) => self.import_error = Some(e),
+                        Ok(tag) => {
+                            self.settings.selected = Some(tag.clone());
+                            if let Some(id) = java_for {
+                                match instances::edit(&id, |meta| meta.version = Some(tag)) {
+                                    Ok(_) => {
+                                        self.reload_instances();
+                                        self.java_mods_page.note = Some(tr("Java Bridge client imported. Turn on Fabric below.").to_string());
+                                    }
+                                    Err(e) => self.java_mods_page.note = Some(e),
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            if java_for.is_some() {
+                                self.java_mods_page.note = Some(e.clone());
+                            }
+                            self.import_error = Some(e);
+                        }
                     }
                 }
                 Msg::Pruned(gone) => {

@@ -159,6 +159,9 @@ pub struct Meta {
     /// ([`switch`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub java_kept: Option<JavaGame>,
+    /// Explicit offline Fabric opt-in for this Horizon instance; off by default.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub offline_fabric: bool,
 }
 
 /// A Minecraft: Java Edition instance: the real game of one version, with the Java it runs on
@@ -251,6 +254,8 @@ pub struct Instance {
     pub launch: Launch,
     /// The Minecraft: Java Edition it plays, for a Java instance.
     pub java: Option<JavaGame>,
+    /// Whether this Horizon instance explicitly opted into offline Fabric.
+    pub offline_fabric: bool,
 }
 
 impl Instance {
@@ -353,6 +358,7 @@ fn list_in(game_home: &Path, data: &Path) -> Vec<Instance> {
                     .map(|s| UNIX_EPOCH + Duration::from_secs(s)),
                 launch: meta.launch,
                 java: meta.java,
+                offline_fabric: meta.offline_fabric,
                 id,
                 kind,
                 work,

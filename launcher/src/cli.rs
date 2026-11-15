@@ -1566,8 +1566,8 @@ fn execute(command: Cmd, as_json: bool) -> Result<(), String> {
             }
             let mut cmd = backend::client_as(&tag, who.as_ref())?;
             instances::apply(&mut cmd, &instance)?;
+            horizon_launcher::java_mods::configure_launch(&mut cmd, &tag, fabric)?;
             if fabric {
-                configure_offline_fabric(&mut cmd);
                 eprintln!("{}", tr("Offline Fabric mode: ownership is not checked. Java mods can access your files and accounts; run only mods you trust."));
             }
             if let Some(code) = join {
@@ -1826,12 +1826,6 @@ fn execute(command: Cmd, as_json: bool) -> Result<(), String> {
         Cmd::Mcp => unreachable!(),
     }
     Ok(())
-}
-
-/// This opts into the offline fork's Java client. The normal client never sees these arguments.
-fn configure_offline_fabric(cmd: &mut Command) {
-    cmd.env_remove("HORIZON_JAVA_MODS");
-    cmd.args(["--java-mods", "--offline-java-mods"]);
 }
 
 fn java_mods(action: JavaModsCmd, as_json: bool) -> Result<(), String> {
@@ -3854,7 +3848,7 @@ mod tests {
         let cli = Cli::try_parse_from(["horizon-launcher", "play"]).unwrap();
         assert!(matches!(cli.command, Some(Cmd::Play { fabric: false, .. })));
         let mut command = Command::new("horizon-client");
-        configure_offline_fabric(&mut command);
+        horizon_launcher::java_mods::configure_launch(&mut command, "imported-test", true).unwrap();
         assert_eq!(command.get_args().collect::<Vec<_>>(), ["--java-mods", "--offline-java-mods"]);
         assert!(command.get_envs().any(|(key, value)| key == "HORIZON_JAVA_MODS" && value.is_none()));
     }

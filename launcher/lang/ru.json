@@ -1256,5 +1256,15 @@
   "Offline launcher {version}": "Офлайн-лаунчер {version}",
   "Fabric needs an imported offline Java Bridge client. Import the Java client build first.": "Для Fabric нужно импортировать офлайн-клиент Java Bridge. Сначала импортируйте сборку Java-клиента.",
   "Offline Fabric mode: ownership is not checked. Java mods can access your files and accounts; run only mods you trust.": "Офлайн-режим Fabric: владение игрой не проверяется. Java-моды имеют доступ к файлам и аккаунтам; запускайте только те, которым доверяете.",
-  "To run these mods, import the offline Java Bridge client and use play --fabric.": "Чтобы запустить эти моды, импортируйте офлайн-клиент Java Bridge и используйте play --fabric."
+  "To run these mods, import the offline Java Bridge client and use play --fabric.": "Чтобы запустить эти моды, импортируйте офлайн-клиент Java Bridge и используйте play --fabric.",
+  "Add Fabric mods…": "Добавить моды Fabric…",
+  "Added {count} Fabric mods.": "Добавлено модов Fabric: {count}.",
+  "Fabric mods (experimental)": "Моды Fabric (экспериментально)",
+  "Import Java Bridge client…": "Импортировать клиент Java Bridge…",
+  "Import the Java Bridge client from the beta archive before enabling Fabric.": "Перед включением Fabric импортируйте клиент Java Bridge из бета-архива.",
+  "Imported client selected; make sure it is this beta's Java Bridge client.": "Выбран импортированный клиент. Убедитесь, что это Java Bridge из бета-архива.",
+  "Install a Horizon version and prepare it with your Minecraft 26.3 files first. JDK 25 and a first-time internet connection may be needed.": "Сначала установите версию Horizon и подготовьте её из своих файлов Minecraft 26.3. Могут понадобиться JDK 25 и интернет при первом запуске.",
+  "Java Bridge client imported. Turn on Fabric below.": "Клиент Java Bridge импортирован. Включите Fabric ниже.",
+  "Minecraft version required: {version}": "Требуемая версия Minecraft: {version}",
+  "Offline Fabric does not verify ownership. Java mods can access your files and accounts. Use only trusted mods; back up worlds.": "Офлайн Fabric не проверяет владение игрой. Java-моды имеют доступ к файлам и аккаунтам. Используйте только проверенные моды; сохраните резервные копии миров."
 }

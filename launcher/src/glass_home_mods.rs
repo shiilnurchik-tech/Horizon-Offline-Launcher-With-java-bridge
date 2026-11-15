@@ -12,6 +12,7 @@ use servers_page::Field;
 impl Launcher {
     /// Home's Mods tab, for the selected instance.
     pub(super) fn glass_instance_mods(&mut self, cx: &mut Context<Self>) -> Div {
+        let fabric = self.fabric_panel(cx);
         let t = self.theme;
         let busy = self.mods.busy.is_some();
         let updates = self.mods.updates.len();
@@ -21,7 +22,7 @@ impl Launcher {
             .unwrap_or_default();
         let m = &self.instance_mods;
         let (fresh, count) = (m.fresh, m.list.len());
-        let mut body = div().flex().flex_col();
+        let mut body = div().flex().flex_col().gap(px(12.)).children(fabric);
         body = body.children(self.mods_busy_plate());
         if !fresh {
             return body.child(ui::empty().child(tr("Reading the mods…")));

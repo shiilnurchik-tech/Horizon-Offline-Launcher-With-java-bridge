@@ -995,6 +995,7 @@ mod tests {
             last_played: last,
             launch: Default::default(),
             java: java.then(JavaGame::default),
+            offline_fabric: false,
         };
         let list = [
             one("horizon", Kind::Default, false, at(50)),
