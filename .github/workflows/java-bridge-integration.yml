@@ -90,6 +90,10 @@ jobs:
           exit "$status"
       - name: Test mod content declarations
         run: cargo test --locked -p horizon-mods --lib
+      - name: Test mod worldgen seeds
+        run: cargo test --locked -p horizon-core --lib noise_seed
+      - name: Test mod OBJ texture slots
+        run: cargo test --locked -p horizon-assets --lib obj_slots
       - name: Test mod block collisions
         run: cargo test --locked -p horizon-world --test mod_block_collision
       - name: Test in-memory and network framing

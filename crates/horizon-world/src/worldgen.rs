@@ -52,6 +52,7 @@ pub mod material_extensions;
 pub mod material_stage;
 pub mod material_surface;
 pub mod native_generate;
+mod noise_seed;
 pub mod ore_feature;
 pub mod overrides;
 pub mod placement;
@@ -81,6 +82,7 @@ pub mod vines;
 pub mod weighted;
 pub mod write_zone;
 use horizon_core::noise::{NoiseBuildError, NormalNoise, Normalization};
+pub use noise_seed::noise_seed;
 use serde_json::value::RawValue;
 use std::collections::BTreeMap;
 

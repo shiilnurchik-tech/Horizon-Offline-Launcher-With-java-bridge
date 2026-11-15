@@ -303,6 +303,13 @@ fn bake_obj(
         .map(|name| RenderType::by_name(name).unwrap_or(RenderType::Unsupported));
     for face in obj.faces.iter().filter(|f| !hidden.contains(&f.object)) {
         let slot = match obj.materials.get(&face.material) {
+            // `map_Kd 0` (no `#`, no namespace) naming one of the model's texture slots: that
+            // slot, as Create's OBJ models (its backtanks) are drawn by its own loader.
+            Some(MtlTexture::Sprite(sprite))
+                if !sprite.contains(':') && model.material(sprite).ok().flatten().is_some() =>
+            {
+                sprite
+            }
             Some(MtlTexture::Sprite(sprite)) => {
                 output.push(obj_quad(
                     face,
@@ -635,6 +642,7 @@ mod loader_tests {
         assert!(quads.iter().all(|q| !q.shade));
         assert_eq!(quads[0].material.sprite, "minecraft:block/s");
     }
+    mod obj_slots;
     #[test]
     fn missing_or_broken_obj_bakes_nothing() {
         let missing = library(&[("t:o", OBJ_MODEL)], &[]);
