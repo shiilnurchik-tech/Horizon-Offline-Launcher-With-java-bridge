@@ -22,7 +22,7 @@ fn run(root: &Path, args: &[&str]) -> std::process::Output {
 }
 
 #[test]
-fn manage_fabric_jars_without_claiming_the_bridge_runs() {
+fn manage_fabric_jars_and_explain_how_to_enable_the_bridge() {
     let root = std::env::temp_dir().join(format!("horizon-java-mods-cli-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
@@ -42,7 +42,7 @@ fn manage_fabric_jars_without_claiming_the_bridge_runs() {
     }
     let output = run(&root, &["java-mods", "remove", "example"]);
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("not integrated"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("play --fabric"));
     assert!(root.join("trash/example.jar").is_file());
     let _ = std::fs::remove_dir_all(root);
 }

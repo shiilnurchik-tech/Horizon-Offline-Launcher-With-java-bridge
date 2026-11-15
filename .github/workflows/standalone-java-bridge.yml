@@ -1,7 +1,6 @@
-# These artifacts are two separate programs, not a tested integrated release.
-# The upstream Java client is built verbatim from a pinned commit; the offline
-# launcher is built from this branch. No Minecraft or Fabric binaries are bundled.
-name: Standalone offline launcher and upstream Java client
+# The pinned upstream client is patched for explicit offline opt-in; the launcher
+# is built from this branch. These artifacts are experimental, not a signed release.
+name: Offline launcher and Java Bridge beta
 
 on:
   push:
@@ -18,7 +17,7 @@ env:
 
 jobs:
   bridge-client:
-    name: Upstream Java client (${{ matrix.name }})
+    name: Offline Java client (${{ matrix.name }})
     strategy:
       fail-fast: false
       matrix:
@@ -42,10 +41,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          path: integration-src
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
           repository: iaxivers/horizon-java-bridge
           ref: 99e8ba80497e0515909af4601a4b078020034d2c
           path: bridge
           persist-credentials: false
+      - name: Apply the explicit offline mode patch
+        run: git apply --unidiff-zero --check ../integration-src/integration/upstream-offline-java-mods.patch && git apply --unidiff-zero ../integration-src/integration/upstream-offline-java-mods.patch
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -56,7 +61,20 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libfontconfig-dev libvulkan-dev
-      - name: Build upstream client with Java mods
+      - name: Test explicit offline opt-in and original ownership gate
+        run: |
+          set +e
+          cargo test --locked -p horizon-jvm --lib gate::tests 2>&1 | tee "$RUNNER_TEMP/offline-gate-test.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            detail=$(tail -n 35 "$RUNNER_TEMP/offline-gate-test.log")
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\n'/'%0A'}
+            detail=${detail//$'\r'/'%0D'}
+            echo "::error::$detail"
+          fi
+          exit "$status"
+      - name: Build patched client with Java mods
         run: |
           set +e
           cargo build --release --locked -p horizon-client --features java-mods --bin horizon-client 2>&1 | tee "$RUNNER_TEMP/bridge-build.log"
@@ -73,12 +91,12 @@ jobs:
         run: |
           set -euo pipefail
           binary="target/release/${{ matrix.executable }}"
-          "$binary" --help | grep -q -- '--java-mods'
+          "$binary" --help | grep -q -- '--offline-java-mods'
           python tools/check_imports.py "$binary"
           test ! -e .local/bridge
           mkdir -p ../artifact-java
           cp "$binary" LICENSE THIRD_PARTY_NOTICES.md ../artifact-java/
-          printf 'Upstream iaxivers/horizon-java-bridge commit 99e8ba80497e0515909af4601a4b078020034d2c\nBuilt with java-mods, HORIZON_BRIDGE_PLATFORM=source.\nStandalone upstream client: not yet integrated with the offline launcher.\nRequires compatible prepared game resources, Java 25 JDK, Fabric dependencies, and upstream owner verification.\nMinecraft, Fabric and mod files are not included.\n' > ../artifact-java/README.txt
+          printf 'Upstream iaxivers/horizon-java-bridge commit 99e8ba80497e0515909af4601a4b078020034d2c\nBuilt with java-mods, HORIZON_BRIDGE_PLATFORM=source.\nPatched with the offline launcher fork’s explicit offline opt-in.\nRequires compatible prepared game resources, Java 25 JDK, and Fabric dependencies.\nOffline mod mode does not verify game ownership.\nMinecraft, Fabric and mod files are not included.\n' > ../artifact-java/README.txt
       - uses: actions/upload-artifact@v4
         with:
           name: standalone-java-client-${{ matrix.name }}
@@ -120,6 +138,23 @@ jobs:
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         run: bash "$GITHUB_WORKSPACE/tools/ci/apt_install.sh" libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libfontconfig-dev libvulkan-dev libasound2-dev
+      - name: Test launcher
+        run: |
+          set +e
+          if [ "$RUNNER_OS" = Windows ]; then
+            cargo test --release --locked --bin horizon-launcher fabric_is_explicit_and_adds_only_the_offline_bridge_arguments 2>&1 | tee "$RUNNER_TEMP/launcher-tests.log"
+          else
+            cargo test --release --locked 2>&1 | tee "$RUNNER_TEMP/launcher-tests.log"
+          fi
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            detail=$(tail -n 35 "$RUNNER_TEMP/launcher-tests.log")
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\n'/'%0A'}
+            detail=${detail//$'\r'/'%0D'}
+            echo "::error::$detail"
+          fi
+          exit "$status"
       - name: Build offline launcher
         run: |
           set +e
@@ -140,10 +175,55 @@ jobs:
           "$binary" --version
           mkdir -p ../artifact-launcher
           cp "$binary" ../artifact-launcher/
-          printf 'Offline launcher built from this workflow run.\nNot yet integrated with the standalone Java client.\nThe launcher will not self-update. Minecraft files are not included.\n' > ../artifact-launcher/README.txt
+          printf 'Offline launcher built from this workflow run.\nUse play --fabric with the imported offline Java client.\nThe launcher will not self-update. Minecraft files are not included.\n' > ../artifact-launcher/README.txt
       - uses: actions/upload-artifact@v4
         with:
           name: offline-launcher-${{ matrix.name }}
           path: artifact-launcher/
+          if-no-files-found: error
+          retention-days: 7
+
+  bundle:
+    name: Experimental bundle (${{ matrix.name }})
+    needs: [bridge-client, offline-launcher]
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [linux-x64, windows-x64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: standalone-java-client-${{ matrix.name }}
+          path: java-client
+      - uses: actions/download-artifact@v4
+        with:
+          name: offline-launcher-${{ matrix.name }}
+          path: launcher-bin
+      - name: Make paired archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir bundle
+          if [ '${{ matrix.name }}' = linux-x64 ]; then
+            cp java-client/horizon-client launcher-bin/horizon-launcher bundle/
+            chmod 755 bundle/horizon-client bundle/horizon-launcher
+          else
+            cp java-client/horizon-client.exe launcher-bin/horizon-launcher.exe bundle/
+          fi
+          cp java-client/LICENSE java-client/THIRD_PARTY_NOTICES.md bundle/
+          cp integration/README-ru.txt bundle/README-ru.txt
+          if [ '${{ matrix.name }}' = linux-x64 ]; then
+            tar -czf offline-java-bridge-beta-linux-x64.tar.gz -C bundle .
+          else
+            (cd bundle && zip -q -r ../offline-java-bridge-beta-windows-x64.zip .)
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-java-bridge-beta-${{ matrix.name }}
+          path: offline-java-bridge-beta-*
           if-no-files-found: error
           retention-days: 7

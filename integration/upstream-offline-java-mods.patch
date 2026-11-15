@@ -1,0 +1,63 @@
+diff --git a/crates/horizon-client/src/game/java_mods/bridge.rs b/crates/horizon-client/src/game/java_mods/bridge.rs
+index 37d1547..6d89cb9 100644
+--- a/crates/horizon-client/src/game/java_mods/bridge.rs
++++ b/crates/horizon-client/src/game/java_mods/bridge.rs
+@@ -38,0 +39,3 @@ pub(in crate::game) fn opted_in() -> bool {
++            OptIn::Offline => {
++                log::warn!("Java mods: explicitly enabled in offline mode; Minecraft ownership was not verified. Only run trusted Java mods.");
++            }
+diff --git a/crates/horizon-client/src/game.rs b/crates/horizon-client/src/game.rs
+index bdca536..806fab4 100644
+--- a/crates/horizon-client/src/game.rs
++++ b/crates/horizon-client/src/game.rs
+@@ -700 +700 @@ impl Options {
+-                        "Horizon — Minecraft Java Edition {} in Rust\n\n  --resources PATH        Prepared resources (horizon-prepare)\n  --render-distance N     Chunks, 2..128 (default 12)\n  --world NAME            World folder under saves/ (default \"New World\")\n  --seed N                World seed for new worlds (default 0)\n  --width N, --height N   Window size (default 1280 x 720)\n  --creative              Creative mode (default survival)\n  --test-terrain          Simple test terrain instead of vanilla generation\n  --frames N              Exit after N frames (testing)\n  --world-frames N        Exit after N frames drawn in the world (testing)\n  --smoke-report PATH     Write a JSON report on exit\n  --benchmark SCENARIO    Run a benchmark (standard, village, forest, ocean, mountain), write its report to benchmarks/ and quit\n  --control               Accept horizon-ctl commands on a local socket\n  --control-socket PATH   Control socket path (default $XDG_RUNTIME_DIR/horizon-control.sock)\n  --transfers SETTINGS    A dedicated server takes a proxy's hand-over requests (server.toml [transfer], docs/server.md)\n  --server HOST[:PORT]    Join a multiplayer server (offline mode) at start\n  --quickPlaySingleplayer WORLD  Open this world of saves/ at start, only if it exists (vanilla's)\n  --quickPlayMultiplayer HOST[:PORT]  The same as --server (vanilla's name)\n  --replay FILE           Watch a ReplayMod recording (.mcpr) at start\n  --java-mods             Run the Fabric mods in mods-java/ (builds with Java mods)\n  --name NAME             Player name for multiplayer (default: generated once, kept in horizon-player.txt)\n  --session-file PATH     Signed-in account from the launcher (read once, then deleted)\n  --session-stdin         The same account as JSON on standard input\n  --game-dir DIR          Game folder: saves, options.txt, packs, mods (default: the working directory)\n  --home DIR              Logs and crash reports (default $HORIZON_HOME, else the platform data folder)\n  --player-dir DIR        This player's own files when several play in one game folder: options.txt, logs, horizon-player.txt, servers.dat, screenshots\n  --fullscreen            Open the window fullscreen\n  --launch-api            Print the Launch API version and options as JSON (docs/api/launch.md)\n  --dev-mod PATH          A content mod (.hmod or folder) to develop: always on\n  --pregen                Add Horizon's /pregen command (docs/pregeneration.md)\n\nControls: mouse look, WASD move, Space jump, Left Shift sneak, Left Ctrl sprint,\nleft click break, right click place/use, 1-9/scroll hotbar, E inventory,\nQ drop, F3 debug, Esc pause.",
++                        "Horizon — Minecraft Java Edition {} in Rust\n\n  --resources PATH        Prepared resources (horizon-prepare)\n  --render-distance N     Chunks, 2..128 (default 12)\n  --world NAME            World folder under saves/ (default \"New World\")\n  --seed N                World seed for new worlds (default 0)\n  --width N, --height N   Window size (default 1280 x 720)\n  --creative              Creative mode (default survival)\n  --test-terrain          Simple test terrain instead of vanilla generation\n  --frames N              Exit after N frames (testing)\n  --world-frames N        Exit after N frames drawn in the world (testing)\n  --smoke-report PATH     Write a JSON report on exit\n  --benchmark SCENARIO    Run a benchmark (standard, village, forest, ocean, mountain), write its report to benchmarks/ and quit\n  --control               Accept horizon-ctl commands on a local socket\n  --control-socket PATH   Control socket path (default $XDG_RUNTIME_DIR/horizon-control.sock)\n  --transfers SETTINGS    A dedicated server takes a proxy's hand-over requests (server.toml [transfer], docs/server.md)\n  --server HOST[:PORT]    Join a multiplayer server (offline mode) at start\n  --quickPlaySingleplayer WORLD  Open this world of saves/ at start, only if it exists (vanilla's)\n  --quickPlayMultiplayer HOST[:PORT]  The same as --server (vanilla's name)\n  --replay FILE           Watch a ReplayMod recording (.mcpr) at start\n  --java-mods             Run the Fabric mods in mods-java/ (builds with Java mods)\n  --offline-java-mods     Explicitly allow Fabric mods without online ownership verification\n  --name NAME             Player name for multiplayer (default: generated once, kept in horizon-player.txt)\n  --session-file PATH     Signed-in account from the launcher (read once, then deleted)\n  --session-stdin         The same account as JSON on standard input\n  --game-dir DIR          Game folder: saves, options.txt, packs, mods (default: the working directory)\n  --home DIR              Logs and crash reports (default $HORIZON_HOME, else the platform data folder)\n  --player-dir DIR        This player's own files when several play in one game folder: options.txt, logs, horizon-player.txt, servers.dat, screenshots\n  --fullscreen            Open the window fullscreen\n  --launch-api            Print the Launch API version and options as JSON (docs/api/launch.md)\n  --dev-mod PATH          A content mod (.hmod or folder) to develop: always on\n  --pregen                Add Horizon's /pregen command (docs/pregeneration.md)\n\nControls: mouse look, WASD move, Space jump, Left Shift sneak, Left Ctrl sprint,\nleft click break, right click place/use, 1-9/scroll hotbar, E inventory,\nQ drop, F3 debug, Esc pause.",
+@@ -734 +734 @@ impl Options {
+-                "--java-mods" => {}
++                "--java-mods" | "--offline-java-mods" => {}
+diff --git a/crates/horizon-jvm/src/gate/tests.rs b/crates/horizon-jvm/src/gate/tests.rs
+index 91b7bb8..e2da5af 100644
+--- a/crates/horizon-jvm/src/gate/tests.rs
++++ b/crates/horizon-jvm/src/gate/tests.rs
+@@ -287,0 +288,9 @@ fn the_services_check_reads_profile_and_entitlements() {
++
++#[test]
++fn offline_mods_require_both_explicit_arguments() {
++    assert_eq!(run(&[], &[], Services::DoesNot), (OptIn::Off, false));
++    assert_eq!(run(&[OFFLINE_ARG], &[], Services::DoesNot), (OptIn::Off, false));
++    assert_eq!(run(&[ARG], &[], Services::DoesNot), (OptIn::NoOwner(Refused::NoRecord), false));
++    assert_eq!(run(&[ARG, OFFLINE_ARG], &[], Services::DoesNot), (OptIn::Offline, false));
++    assert!(OptIn::Offline.runs());
++}
+diff --git a/crates/horizon-jvm/src/gate.rs b/crates/horizon-jvm/src/gate.rs
+index e5d5f19..1b12062 100644
+--- a/crates/horizon-jvm/src/gate.rs
++++ b/crates/horizon-jvm/src/gate.rs
+@@ -2,0 +3,4 @@
++//! Offline launcher fork: `--java-mods --offline-java-mods` is an explicit, separate
++//! mode for locally supplied game files, without an online ownership check. Mods run
++//! with the user's full permissions. Fabric dependencies may still require network.
++//!
+@@ -36,0 +41,2 @@ pub const ARG: &str = "--java-mods";
++/// Explicitly opt into this fork's offline Java-mod mode, alongside `ARG`.
++pub const OFFLINE_ARG: &str = "--offline-java-mods";
+@@ -94,0 +101,2 @@ pub enum OptIn {
++    /// Explicit offline mode; ownership was not checked with Minecraft services.
++    Offline,
+@@ -106 +114 @@ impl OptIn {
+-            OptIn::Launcher => true,
++            OptIn::Launcher | OptIn::Offline => true,
+@@ -289 +297,7 @@ pub fn decide<S: AsRef<str>>(
+-    if !args.into_iter().any(|a| a.as_ref() == ARG) {
++    let mut requested = false;
++    let mut offline = false;
++    for arg in args {
++        requested |= arg.as_ref() == ARG;
++        offline |= arg.as_ref() == OFFLINE_ARG;
++    }
++    if !requested {
+@@ -291,0 +306,3 @@ pub fn decide<S: AsRef<str>>(
++    if offline {
++        return OptIn::Offline;
++    }

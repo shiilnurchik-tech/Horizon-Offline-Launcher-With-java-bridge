@@ -39,7 +39,7 @@ enum JavaCmd {
     Install { java: String },
 }
 
-/// Manage Fabric mod files. The Java Bridge client is not integrated yet.
+/// Manage Fabric mod files for an imported offline Java Bridge client.
 #[derive(Subcommand)]
 enum JavaModsCmd {
     /// List Fabric jars in an instance
@@ -788,6 +788,10 @@ enum Cmd {
         /// --server-thread
         #[arg(long = "arg", value_name = "ARG", allow_hyphen_values = true)]
         arg: Vec<String>,
+        /// Explicitly run Java mods offline with an imported offline Java Bridge client.
+        /// Java mods are programs with full access to your files: use only trusted mods.
+        #[arg(long)]
+        fabric: bool,
         /// Play this launch as this signed-in account (its name or UUID), without changing
         /// the one `account select` picked: several games can play as several accounts at once
         #[arg(long, value_name = "WHO")]
@@ -1497,6 +1501,7 @@ fn execute(command: Cmd, as_json: bool) -> Result<(), String> {
             join,
             server,
             arg,
+            fabric,
             account,
         } => {
             let instance = match instance {
@@ -1508,11 +1513,12 @@ fn execute(command: Cmd, as_json: bool) -> Result<(), String> {
                     || world.is_some()
                     || join.is_some()
                     || creative
+                    || fabric
                     || account.is_some()
                 {
                     return Err(format!(
                         "{} plays Minecraft: Java Edition: --version, --world, --creative, \
-                         --join and --account are for Horizon instances.",
+                         --join, --fabric and --account are for Horizon instances.",
                         instance.name
                     ));
                 }
@@ -1554,9 +1560,16 @@ fn execute(command: Cmd, as_json: bool) -> Result<(), String> {
             if let Some(who) = &who {
                 accounts.play_as(account::store(), who.clone())?;
             }
-            let mut cmd =
-                backend::client_as(&instance.resolve_version(version.as_deref())?, who.as_ref())?;
+            let tag = instance.resolve_version(version.as_deref())?;
+            if fabric && !build_import::is_imported(&tag) {
+                return Err(tr("Fabric needs an imported offline Java Bridge client. Import the Java client build first.").to_string());
+            }
+            let mut cmd = backend::client_as(&tag, who.as_ref())?;
             instances::apply(&mut cmd, &instance)?;
+            if fabric {
+                configure_offline_fabric(&mut cmd);
+                eprintln!("{}", tr("Offline Fabric mode: ownership is not checked. Java mods can access your files and accounts; run only mods you trust."));
+            }
             if let Some(code) = join {
                 backend::join_friend(&mut cmd, &code)?;
             }
@@ -1815,6 +1828,12 @@ fn execute(command: Cmd, as_json: bool) -> Result<(), String> {
     Ok(())
 }
 
+/// This opts into the offline fork's Java client. The normal client never sees these arguments.
+fn configure_offline_fabric(cmd: &mut Command) {
+    cmd.env_remove("HORIZON_JAVA_MODS");
+    cmd.args(["--java-mods", "--offline-java-mods"]);
+}
+
 fn java_mods(action: JavaModsCmd, as_json: bool) -> Result<(), String> {
     use horizon_launcher::java_mods;
     let instance_name = match &action {
@@ -1827,7 +1846,7 @@ fn java_mods(action: JavaModsCmd, as_json: bool) -> Result<(), String> {
         None => instances::selected(),
     };
     if !as_json {
-        eprintln!("{}", tr("The Java Bridge client is not integrated yet; these mods cannot run in this build."));
+        eprintln!("{}", tr("To run these mods, import the offline Java Bridge client and use play --fabric."));
     }
     let mods = match action {
         JavaModsCmd::List { .. } => java_mods::list(&instance.home),
@@ -3826,6 +3845,18 @@ mod tests {
         );
         set_setting(&mut settings, "language", "system").unwrap();
         assert_eq!(settings.language, None);
+    }
+
+    #[test]
+    fn fabric_is_explicit_and_adds_only_the_offline_bridge_arguments() {
+        let cli = Cli::try_parse_from(["horizon-launcher", "play", "--fabric"]).unwrap();
+        assert!(matches!(cli.command, Some(Cmd::Play { fabric: true, .. })));
+        let cli = Cli::try_parse_from(["horizon-launcher", "play"]).unwrap();
+        assert!(matches!(cli.command, Some(Cmd::Play { fabric: false, .. })));
+        let mut command = Command::new("horizon-client");
+        configure_offline_fabric(&mut command);
+        assert_eq!(command.get_args().collect::<Vec<_>>(), ["--java-mods", "--offline-java-mods"]);
+        assert!(command.get_envs().any(|(key, value)| key == "HORIZON_JAVA_MODS" && value.is_none()));
     }
 
     #[test]
