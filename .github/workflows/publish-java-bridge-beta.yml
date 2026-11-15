@@ -55,8 +55,15 @@ jobs:
         run: |
           set -euo pipefail
           cd release-files
-          test -s offline-java-bridge-beta-linux-x64.tar.gz
-          test -s offline-java-bridge-beta-windows-x64.zip
+          for file in offline-java-bridge-beta-linux-x64.tar.gz offline-java-bridge-beta-windows-x64.zip; do
+            if [ ! -s "$file" ]; then echo "::error::Missing or empty $file"; ls -la; exit 1; fi
+          done
           sha256sum offline-java-bridge-beta-linux-x64.tar.gz offline-java-bridge-beta-windows-x64.zip > SHA256SUMS.txt
-          gh release create "$RELEASE_TAG" --target "$BUILD_COMMIT" --title 'Horizon Offline + Java Bridge — beta с интерфейсом Fabric' --notes-file ../integration/release-notes-ui.md --prerelease --draft offline-java-bridge-beta-linux-x64.tar.gz offline-java-bridge-beta-windows-x64.zip SHA256SUMS.txt
-          gh release edit "$RELEASE_TAG" --draft=false --latest=false
+          if ! output=$(gh release create "$RELEASE_TAG" --target "$BUILD_COMMIT" --title 'Horizon Offline + Java Bridge — beta с интерфейсом Fabric' --notes-file ../integration/release-notes-ui.md --prerelease --draft offline-java-bridge-beta-linux-x64.tar.gz offline-java-bridge-beta-windows-x64.zip SHA256SUMS.txt 2>&1); then
+            output=${output//'%'/'%25'}; output=${output//$'\n'/'%0A'}; output=${output//$'\r'/'%0D'}
+            echo "::error::$output"; exit 1
+          fi
+          if ! output=$(gh release edit "$RELEASE_TAG" --draft=false --latest=false 2>&1); then
+            output=${output//'%'/'%25'}; output=${output//$'\n'/'%0A'}; output=${output//$'\r'/'%0D'}
+            echo "::error::$output"; exit 1
+          fi
