@@ -39,6 +39,28 @@ enum JavaCmd {
     Install { java: String },
 }
 
+/// Manage Fabric mod files. The Java Bridge client is not integrated yet.
+#[derive(Subcommand)]
+enum JavaModsCmd {
+    /// List Fabric jars in an instance
+    List {
+        #[arg(long)]
+        instance: Option<String>,
+    },
+    /// Copy a Fabric jar into an instance
+    Add {
+        file: PathBuf,
+        #[arg(long)]
+        instance: Option<String>,
+    },
+    /// Send a Fabric jar to the trash by filename, mod id or name
+    Remove {
+        which: String,
+        #[arg(long)]
+        instance: Option<String>,
+    },
+}
+
 #[derive(Subcommand)]
 enum RustCmd {
     /// Whether it is installed, its version and whether this computer can link with it
@@ -932,6 +954,11 @@ enum Cmd {
         #[command(subcommand)]
         action: Option<JavaCmd>,
     },
+    /// Manage Fabric mod files (the Java Bridge client is not integrated yet)
+    JavaMods {
+        #[command(subcommand)]
+        action: Option<JavaModsCmd>,
+    },
     /// The screenshots F2 took in an instance: list, delete
     Screenshots {
         #[command(subcommand)]
@@ -1779,7 +1806,44 @@ fn execute(command: Cmd, as_json: bool) -> Result<(), String> {
         Cmd::Servers { action } => servers(action.unwrap_or(ServersCmd::List), as_json)?,
         Cmd::Rust { action } => rust(action.unwrap_or(RustCmd::Status), as_json)?,
         Cmd::Java { action } => java(action.unwrap_or(JavaCmd::List), as_json)?,
+        Cmd::JavaMods { action } => java_mods(
+            action.unwrap_or(JavaModsCmd::List { instance: None }),
+            as_json,
+        )?,
         Cmd::Mcp => unreachable!(),
+    }
+    Ok(())
+}
+
+fn java_mods(action: JavaModsCmd, as_json: bool) -> Result<(), String> {
+    use horizon_launcher::java_mods;
+    let instance_name = match &action {
+        JavaModsCmd::List { instance }
+        | JavaModsCmd::Add { instance, .. }
+        | JavaModsCmd::Remove { instance, .. } => instance,
+    };
+    let instance = match instance_name {
+        Some(name) => instances::find(name)?,
+        None => instances::selected(),
+    };
+    if !as_json {
+        eprintln!("{}", tr("The Java Bridge client is not integrated yet; these mods cannot run in this build."));
+    }
+    let mods = match action {
+        JavaModsCmd::List { .. } => java_mods::list(&instance.home),
+        JavaModsCmd::Add { file, .. } => vec![java_mods::add(&instance.home, &file)?],
+        JavaModsCmd::Remove { which, .. } => vec![java_mods::remove(&instance.home, &which)?],
+    };
+    if as_json {
+        let mods: Vec<_> = mods.iter().map(|m| serde_json::json!({
+            "file": m.file, "id": m.id, "name": m.name, "version": m.version,
+            "size": m.size, "wrong_minecraft": m.wrong_minecraft,
+        })).collect();
+        json(serde_json::json!({ "bridge_integrated": false, "mods": mods }));
+    } else {
+        for m in mods {
+            println!("{} ({})", m.title(), m.file);
+        }
     }
     Ok(())
 }

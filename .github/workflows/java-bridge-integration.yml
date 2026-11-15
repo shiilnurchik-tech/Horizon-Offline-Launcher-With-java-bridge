@@ -1,0 +1,45 @@
+# This is an integration check, not a release of the Java Bridge client.
+name: Java Bridge integration checks
+
+on:
+  push:
+    branches: ['arena/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HORIZON_TELEMETRY_URL: 'off'
+  HORIZON_LAUNCHER_NO_SELF_UPDATE: '1'
+
+jobs:
+  launcher-file-management:
+    name: Fabric file management (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+    defaults:
+      run:
+        working-directory: launcher
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: launcher
+          key: java-bridge-integration-${{ matrix.os }}
+      - name: Install Linux libraries
+        if: runner.os == 'Linux'
+        run: bash "$GITHUB_WORKSPACE/tools/ci/apt_install.sh" libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libfontconfig-dev libvulkan-dev libasound2-dev
+      - name: Test Fabric mod file management
+        run: cargo test --release --locked --lib java_mods::tests
+      - name: Test CLI and its incomplete-bridge warning
+        run: cargo test --release --locked --test java_mods_cli
