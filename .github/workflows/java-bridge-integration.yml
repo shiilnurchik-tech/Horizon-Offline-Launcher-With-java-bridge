@@ -68,6 +68,41 @@ jobs:
             echo "::error::$detail"
           fi
           exit "$status"
+  jvm-runtime:
+    name: JVM and Fabric fixture (Linux)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      HORIZON_BRIDGE_PLATFORM: source
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+          key: java-bridge-runtime
+          cache-on-failure: true
+      - name: Test embedded JVM and stand-in Fabric mod
+        shell: bash
+        run: |
+          set +e
+          java -version
+          javac -version || exit 1
+          cargo test --locked -p horizon-jvm --test boot --test fabric 2>&1 | tee "$RUNNER_TEMP/jvm-runtime.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            detail=$(tail -n 35 "$RUNNER_TEMP/jvm-runtime.log")
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\n'/'%0A'}
+            echo "::error::$detail"
+          fi
+          exit "$status"
   game-check:
     name: Game binary integration (Linux)
     runs-on: ubuntu-22.04
