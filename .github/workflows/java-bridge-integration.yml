@@ -16,6 +16,46 @@ env:
   CARGO_TERM_COLOR: never
 
 jobs:
+  jvm-check:
+    name: Java Bridge crate (Linux)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      HORIZON_BRIDGE_PLATFORM: source
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+          key: java-bridge-jvm
+          cache-on-failure: true
+      - name: Check the bridge crate
+        shell: bash
+        run: |
+          set +e
+          cargo check -p horizon-jvm 2>&1 | tee "$RUNNER_TEMP/jvm-check.log"
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            detail=$(tail -n 25 "$RUNNER_TEMP/jvm-check.log")
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\n'/'%0A'}
+            detail=${detail//$'\r'/'%0D'}
+            echo "::error::$detail"
+          fi
+          exit "$status"
+      - name: Report generated lockfile changes
+        if: always()
+        shell: bash
+        run: |
+          diff=$(git diff -- Cargo.lock)
+          if [ -n "$diff" ]; then
+            diff=${diff//'%'/'%25'}
+            diff=${diff//$'\n'/'%0A'}
+            echo "::warning::$diff"
+          fi
   launcher-file-management:
     name: Fabric file management (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

@@ -1,0 +1,72 @@
+[package]
+name = "horizon-jvm"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version = "1.90"
+description = "Runs Java mods inside Horizon: an embedded JVM, started only when mods-java/ holds jars"
+
+[features]
+# Developers' harnesses only: `HORIZON_JAVA_MODS=1` runs the mods without the launcher's owner
+# record, and `HORIZON_JAVA_MODS_SERVICES` names a stand-in for the Minecraft services (gate.rs).
+# Release builds (java-mods-release.yml, package_java_variant.sh) never enable it.
+dev = []
+# The NeoForge and Forge 1.12 prototypes (neoforge.rs, boot112.rs; docs/java-bridge-neoforge.md,
+# java-bridge-112.md). Off in release builds: they ship Fabric only.
+prototypes = []
+
+[dependencies]
+# The Java mods' blocks, items and assets as Horizon content mods (content.rs): the
+# carry-over step of the modpack porter, fed with facts from the bridge's running game.
+horizon-port-pack = { path = "../horizon-port-pack" }
+serde_json = "1"
+# The JNI bindings: env, strings, arrays, natives. 0.21.1 is already in Cargo.lock.
+jni = "0.21.1"
+# libjvm is loaded at run time from the Java the player has (Minecraft's own runtime first),
+# so nothing links against a JDK at build time.
+libloading = "0.8"
+log = "0.4"
+# The facade jar (facade.rs) is read from and written to zip files.
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# Fabric Loader's pinned jars (libs.rs): downloaded once, checked by SHA-256.
+ureq = { version = "2", default-features = false, features = ["tls"] }
+# Its TLS (libs.rs's agent): the public roots and the system's bundle; the versions ureq uses.
+rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
+rustls-pki-types = { version = "1", features = ["std"] }
+webpki-roots = "0.26"
+sha2 = "0.10"
+# Java discovery, shared with horizon-prepare: JAVA_HOME, the PATH, Minecraft's runtimes.
+horizon-prepare = { path = "../horizon-prepare" }
+# The headless client's GPU (src/gpu/): renderpearl's device carried out on wgpu, the
+# game's version; its SPIR-V (shaderc's, from the pipelines' GLSL) read by naga.
+wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "metal", "naga-ir"] }
+naga = { version = "30.0.1", features = ["spv-in"] }
+pollster = "0.4"
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+wgpu = { version = "30.0.1", default-features = false, features = ["gles"] }
+
+[target.'cfg(windows)'.dependencies]
+wgpu = { version = "30.0.1", default-features = false, features = ["dx12"] }
+# The JVM's option strings in the system's code page (a user name like Ivér).
+windows-sys = { version = "0.61", features = ["Win32_Globalization", "Win32_Storage_FileSystem"] }
+
+[build-dependencies]
+# build.rs compiles the bridge's Java against Fabric Loader (src/libs.rs, shared) and packs it.
+ureq = { version = "2", default-features = false, features = ["tls"] }
+# Its TLS (libs.rs's agent): the public roots and the system's bundle; the versions ureq uses.
+rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
+rustls-pki-types = { version = "1", features = ["std"] }
+webpki-roots = "0.26"
+sha2 = "0.10"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[[test]]
+name = "boot112"
+required-features = ["prototypes"]
+
+[dev-dependencies]
+serde_json = "1"
+
+[lints]
+workspace = true

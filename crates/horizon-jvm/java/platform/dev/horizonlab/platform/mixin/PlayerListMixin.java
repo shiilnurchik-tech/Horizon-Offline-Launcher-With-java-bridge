@@ -1,0 +1,70 @@
+package dev.horizonlab.platform.mixin;
+
+import dev.horizonlab.bridge.Natives;
+import dev.horizonlab.platform.HorizonServer;
+import java.util.function.Function;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.PlayerAdvancements;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.players.PlayerList;
+import net.minecraft.stats.ServerStatsCounter;
+import net.minecraft.world.entity.player.Player;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+/**
+ * Broadcasts on Horizon's player list go to Horizon, which sends them to every player; a
+ * player's stats and advancements are Horizon's (empty, for now), not files the list reads.
+ */
+@Mixin(PlayerList.class)
+public abstract class PlayerListMixin {
+    @Inject(method = "broadcastSystemMessage(Lnet/minecraft/network/chat/Component;Z)V", at = @At("HEAD"), cancellable = true)
+    private void horizon$broadcast(Component message, boolean overlay, CallbackInfo ci) {
+        if (HorizonServer.isMirror((PlayerList) (Object) this)) {
+            if (!horizon$advancementAnnouncement(message)) Natives.broadcast(dev.horizonlab.platform.HorizonServer.chatJson(message));
+            ci.cancel();
+        }
+    }
+
+    /**
+     * A grant's "has made the advancement" line (PlayerAdvancements.award): Horizon keeps the
+     * players' advancements and announces them, so the mirror's (a mod awarding one itself)
+     * would be a second.
+     */
+    private static boolean horizon$advancementAnnouncement(Component message) {
+        return message.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents t
+                && t.getKey().startsWith("chat.type.advancement.");
+    }
+
+    @Inject(method = "broadcastSystemMessage(Lnet/minecraft/network/chat/Component;Ljava/util/function/Function;Z)V", at = @At("HEAD"), cancellable = true)
+    private void horizon$broadcast(Component message, Function<ServerPlayer, Component> perPlayer, boolean overlay, CallbackInfo ci) {
+        if (HorizonServer.isMirror((PlayerList) (Object) this)) {
+            Natives.broadcast(dev.horizonlab.platform.HorizonServer.chatJson(message));
+            ci.cancel();
+        }
+    }
+
+    /** The operators are Horizon's (its permission levels). */
+    @Inject(method = "getOps", at = @At("HEAD"), cancellable = true)
+    private void horizon$ops(CallbackInfoReturnable<net.minecraft.server.players.ServerOpList> cir) {
+        if (HorizonServer.isMirror(this)) cir.setReturnValue(HorizonServer.ops());
+    }
+
+    @Inject(method = "isOp", at = @At("HEAD"), cancellable = true)
+    private void horizon$isOp(net.minecraft.server.players.NameAndId player, CallbackInfoReturnable<Boolean> cir) {
+        if (HorizonServer.isMirror(this)) cir.setReturnValue(HorizonServer.isOp(player));
+    }
+
+    @Inject(method = "getPlayerStats", at = @At("HEAD"), cancellable = true)
+    private void horizon$stats(Player player, CallbackInfoReturnable<ServerStatsCounter> cir) {
+        if (HorizonServer.isMirror((PlayerList) (Object) this)) cir.setReturnValue(HorizonServer.stats(player));
+    }
+
+    @Inject(method = "getPlayerAdvancements", at = @At("HEAD"), cancellable = true)
+    private void horizon$advancements(ServerPlayer player, CallbackInfoReturnable<PlayerAdvancements> cir) {
+        if (HorizonServer.isMirror((PlayerList) (Object) this)) cir.setReturnValue(HorizonServer.advancements(player));
+    }
+}

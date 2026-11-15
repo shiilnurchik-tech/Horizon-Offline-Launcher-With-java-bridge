@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "package": "dev.horizonlab.mixinmod",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "BreakMixin",
+    "CropMixin",
+    "PickupMixin",
+    "CraftMixin",
+    "SnowballMixin",
+    "AttackMixin",
+    "HeavyHitMixin",
+    "RideMixin",
+    "SlotMixin",
+    "DismountMixin",
+    "FallMixin",
+    "EffectMixin",
+    "MilkMixin",
+    "JumpMixin",
+    "TeleportMixin",
+    "AdvancementMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
