@@ -10,6 +10,10 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     path::Path,
 };
+mod components;
+mod own_states;
+mod state_table;
+pub use state_table::{STATE_TABLE_FROM, compact_states};
 
 #[derive(Debug, Deserialize)]
 pub struct Facts {
@@ -20,6 +24,9 @@ pub struct Facts {
     /// The game's items' default components (`items.json`), so item ports leave out what their template has.
     #[serde(skip)]
     pub vanilla_items: BTreeMap<String, Value>,
+    /// Every vanilla state's shapes, for [`Facts::own_states`] (made once).
+    #[serde(skip)]
+    shapes: std::sync::OnceLock<own_states::ShapeIndex>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -59,10 +66,19 @@ pub struct State {
     pub hardness: f32,
     pub emission: u8,
     pub requires_tool: bool,
+    /// `BlockState.isRandomlyTicking` (exporters that write it).
+    #[serde(default)]
+    pub random_ticks: bool,
+    /// `RenderShape.INVISIBLE`: its block entity's renderer draws it, not its model.
+    #[serde(default)]
+    pub invisible: bool,
     pub map_color_id: u8,
     pub sound: Value,
     pub outline: Value,
     pub collision: Value,
+    /// The faces it hides beside it (empty when it can't occlude), exporters that write it.
+    #[serde(default)]
+    pub occlusion: Option<Value>,
     /// What breaking the state drops, per tool (`hand`, `diamond_pickaxe`,
     /// `shears`, `silk_touch_pickaxe`...): item id → count.
     #[serde(default)]
@@ -377,7 +393,10 @@ impl Facts {
         let mut properties = Map::new();
         let mut differences = Vec::new();
         if let Some(s) = ours {
-            properties.insert("hardness".into(), json!(s.hardness));
+            // Any negative destroy time is unbreakable to vanilla (Better End's eternal pedestal
+            // has -11); Horizon's content format says it as -1.
+            let hardness = if s.hardness < 0.0 { -1.0 } else { s.hardness };
+            properties.insert("hardness".into(), json!(hardness));
             properties.insert(
                 "explosion_resistance".into(),
                 json!(block.explosion_resistance),
@@ -451,18 +470,27 @@ impl Facts {
     /// and what it does not reproduce.
     pub fn item(&self, id: &str, owned: &[&str]) -> Result<(Value, Vec<String>), String> {
         let item = self.items.get(id).ok_or("not in the oracle")?;
-        if item.block.is_some() {
-            return Err("a block item without a block".into());
-        }
         let mut differences = Vec::new();
+        if let Some(block) = &item.block {
+            // A seed's crop, a block of another name: the Java mod places it when it runs.
+            differences.push(format!("places {block}: only where its Java mod runs"));
+        }
         if !item.class.starts_with(VANILLA_PACKAGE) {
             differences.push(format!("class {} (behaviour beyond Item)", item.class));
         }
-        if item.food.is_some() {
-            return Err("food (no food template yet)".into());
-        }
-        let template = item_template(item);
+        let food = item.food.is_some() || item.components.contains_key("minecraft:food");
+        // Food on bread; else the vanilla item of its class (a sword on an iron sword).
+        let template = if food {
+            "minecraft:bread"
+        } else {
+            item_template(item)
+        };
         let mut decl = json!({"template": template});
+        // 26.3 components as the bridge's exporter writes them, carried as they are.
+        let mut components = components::carried(item, id, &mut differences);
+        if food && !components.contains_key("minecraft:food") {
+            return Err("food without its components (an older exporter)".into());
+        }
         if item.max_stack_size != 64 {
             decl["max_stack_size"] = json!(item.max_stack_size);
         }
@@ -477,7 +505,9 @@ impl Facts {
                 armor.material
             ));
         }
-        let components = self.item_components(item, template, owned);
+        // The component patch over the template's, from the numbers 1.21.1's exporter keeps
+        // beside its components: over the carried ones where both say.
+        components.extend(self.item_components(item, template, owned));
         if !components.is_empty() {
             decl["components"] = Value::Object(components);
         }
@@ -648,6 +678,56 @@ mod tests {
             .unwrap();
         assert_eq!(tile.template, "minecraft:stone");
         assert_eq!(tile.differences[0], "sounds: no vanilla block has them");
+    }
+
+    #[test]
+    fn own_states_carry_the_boxes_their_stand_in_lacks() {
+        // A basin: open on top, its floor short of the block's edges, so it hides only the
+        // middle of the floor's face under it. Its nearest vanilla state is a full cube, whose
+        // occlusion hid the whole face (the sky showed through the gap round the basin's feet).
+        let cube = json!([[0, 0, 0, 1, 1, 1]]);
+        let basin = json!([
+            [0.125, 0, 0.125, 0.875, 0.125, 0.875],
+            [0, 0.125, 0, 1, 1, 1]
+        ]);
+        let with_occlusion = |mut s: Value, occlusion: &Value| {
+            s["occlusion"] = occlusion.clone();
+            s
+        };
+        let class = ["net.minecraft.world.level.block.Block"];
+        let facts: Facts = serde_json::from_value(json!({
+            "blocks": {
+                "minecraft:stone": block(&class, json!({}), json!({"": with_occlusion(state(1.5, "stone", cube.clone()), &cube)})),
+                "m:basin": block(&["m.Basin", class[0]], json!({"facing": ["down", "north"]}), json!({
+                    "facing=down": with_occlusion(state(1.5, "stone", basin.clone()), &basin),
+                    "facing=north": with_occlusion(state(1.5, "stone", cube.clone()), &json!([]))})),
+            },
+            "items": {}
+        }))
+        .unwrap();
+        let (_, states) = facts.own_states("m:basin", &|_: &str| true).unwrap();
+        let by = |facing: &str| {
+            states
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|s| s["properties"]["facing"] == json!(facing))
+                .unwrap()
+                .clone()
+        };
+        let down = by("down");
+        assert_eq!(down["shape"], json!("minecraft:stone[]"));
+        assert_eq!(down["outline"], basin);
+        assert_eq!(down["collision"], basin);
+        assert_eq!(down["occlusion"], basin);
+        // Stone's shapes exactly, but it occludes nothing (a noOcclusion block): only that.
+        let north = by("north");
+        assert!(north.get("outline").is_none() && north.get("collision").is_none());
+        assert_eq!(north["occlusion"], json!([]));
+        // Many states: the table's shape entries carry the boxes.
+        let table = compact_states(vec![down.clone(); STATE_TABLE_FROM]);
+        assert_eq!(table["shapes"][0]["like"], json!("minecraft:stone[]"));
+        assert_eq!(table["shapes"][0]["occlusion"], basin);
     }
 
     #[test]

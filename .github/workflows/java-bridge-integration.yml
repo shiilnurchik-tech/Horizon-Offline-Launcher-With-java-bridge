@@ -46,6 +46,8 @@ jobs:
             echo "::error::$detail"
           fi
           exit "$status"
+      - name: Test the Java mod content porter
+        run: cargo test --locked -p horizon-port-pack --lib
       - name: Check Java path normalization
         run: cargo test --locked -p horizon-prepare --lib verbatim_drive_paths_lose_their_prefix
       - name: Report generated lockfile changes

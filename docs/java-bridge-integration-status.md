@@ -35,9 +35,10 @@ branch tip.
 The bridge's Fabric jar file-management module and its tests have been ported. The CLI
 `java-mods list/add/remove` manages files under an instance's `mods-java/` and explicitly
 warns that this build cannot run them. The JVM crate's sources have also been imported;
-the game does not yet call them. The `Java Bridge integration checks` workflow checks
-the file manager on Linux and Windows and checks the JVM crate on Linux; it does not
-publish a combined build.
+the game does not yet call them. The bridge's content-porter changes are being merged
+with the newer archive safety checks. The `Java Bridge integration checks` workflow
+checks the file manager on Linux and Windows and checks the JVM crate and content porter
+on Linux; it does not publish a combined build.
 
 ## Integration work
 

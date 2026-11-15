@@ -4,6 +4,7 @@
 //! only; license and dependency fields are not interpreted.
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
+mod lenient_json;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct JarInfo {
@@ -207,8 +208,9 @@ pub fn mods_toml(text: &str) -> Result<JarInfo, String> {
 }
 
 pub fn fabric(text: &str) -> Result<JarInfo, String> {
-    let v: serde_json::Value =
-        serde_json::from_str(text).map_err(|e| format!("fabric.mod.json: {e}"))?;
+    let v: serde_json::Value = serde_json::from_str(text)
+        .or_else(|_| serde_json::from_str(&lenient_json::lenient_json(text)))
+        .map_err(|e| format!("fabric.mod.json: {e}"))?;
     let s = |k: &str| v[k].as_str().unwrap_or("").to_owned();
     let license = match &v["license"] {
         serde_json::Value::Array(l) => l

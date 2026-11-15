@@ -11,6 +11,10 @@ use std::{
     fs,
     path::Path,
 };
+mod declare;
+mod invisible;
+mod legacy_lang;
+mod texture_namespaces;
 
 /// What `check`, the carry and the report say of a jar made for 1.20 or older.
 pub const OLD_LAYOUT: &str =
@@ -781,6 +785,7 @@ fn extra_namespaces(
         owned.insert(ns.clone());
         claimed.push(ns);
     }
+    claimed.extend(texture_namespaces::only_textures(zip, candidates));
     claimed.sort();
     claimed
 }
@@ -907,6 +912,29 @@ fn variant_models(overrides: &BTreeMap<String, BTreeSet<String>>) -> BTreeSet<St
 /// and items are the ones the mod registers, with the templates and numbers
 /// the facts give; `allowed` says which vanilla blocks the game has;
 /// `pack` which mods the pack holds and ports along.
+/// Whether a carried mod changes what the world holds: blocks or items it declares, or any
+/// data (recipes, loot, tags, worldgen, advancements) in its folder.
+fn changes_world(inside: &Path, report: &Report) -> bool {
+    let data = inside.join("data");
+    let has_data = data.is_dir() && walkdir_any(&data);
+    !report.blocks.is_empty() || report.items > 0 || has_data
+}
+
+/// Whether a folder holds any file, at any depth.
+fn walkdir_any(dir: &Path) -> bool {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return false;
+    };
+    entries.flatten().any(|e| {
+        let path = e.path();
+        if path.is_dir() {
+            walkdir_any(&path)
+        } else {
+            true
+        }
+    })
+}
+
 pub fn carry(
     jar: &Path,
     info: &JarInfo,
@@ -922,12 +950,16 @@ pub fn carry(
         || id.len() > 64
         || !id
             .bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"_-.".contains(&b))
     {
         return Err(format!(
-            "mod id {id:?} is not [a-z0-9_]{{1,64}}: rename it before carrying over"
+            "mod id {id:?} is not [a-z0-9_-.]{{1,64}}: rename it before carrying over"
         ));
     }
+    // Fabric's ids may hold `-` and `.` (`cloth-config`, `fabric-api`); a content mod's id may
+    // not. Its manifest takes the id with `_` for them and owns the original as a namespace
+    // (its files keep their names).
+    let content_id = id.replace(['-', '.'], "_");
     let file = fs::File::open(jar).map_err(|e| format!("{}: {e}", jar.display()))?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("{}: {e}", jar.display()))?;
     // The previous harness verdict describes the content we are about to replace.
@@ -971,9 +1003,15 @@ pub fn carry(
         .chain(report.namespaces.iter().map(String::as_str))
         .collect();
     let mut budget = crate::entry::Budget::archive();
+    let names: BTreeSet<String> = names.into_iter().collect();
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
         let name = entry.name().map_err(|e| e.to_string())?.into_owned();
+        // A legacy `.lang` file (`key=value` lines, the pre-1.13 format: ReplayMod keeps its
+        // translations so and makes JSON of them at runtime, in a resource pack of its own) is
+        // carried as the JSON vanilla reads, unless the jar has that JSON too.
+        let lang = legacy_lang::legacy_lang(&name).filter(|json| !names.contains(json));
+        let name = lang.clone().unwrap_or(name);
         let Some(keep) = place(&name, &owned) else {
             continue;
         };
@@ -986,6 +1024,9 @@ pub fn carry(
         let mut bytes = budget
             .read(&mut entry, declared, crate::entry::MAX_FILE)
             .map_err(|e| format!("{name}: {e}"))?;
+        if lang.is_some() {
+            bytes = legacy_lang::lang_json(&bytes);
+        }
         let unreadable = if keep {
             unreadable(&name, &mut bytes)
         } else {
@@ -1147,6 +1188,9 @@ pub fn carry(
                 .filter(|_| own)
             {
                 if let Ok(v) = serde_json::from_slice(&bytes) {
+                    if let Some(hidden) = invisible::blockstate(facts, ns, b, &v, &inside)? {
+                        bytes = hidden;
+                    }
                     blockstates.insert(b.to_owned(), v);
                 }
             } else if let Some(m) = rel
@@ -1233,105 +1277,25 @@ pub fn carry(
         let text = serde_json::to_vec_pretty(v).unwrap_or_default();
         write(&decl.join(format!("{kind}/{name}.json")), &text)
     };
+    // Owned names, not borrowed from `report` (declared into below).
+    let owned: Vec<String> = owned.iter().map(|n| n.to_string()).collect();
+    let owned: Vec<&str> = owned.iter().map(String::as_str).collect();
     if let Some(facts) = facts {
         report.oracle = true;
         let prefix = format!("{id}:");
-        let mut declared = BTreeSet::new();
-        for (full, block) in facts.blocks.range(prefix.clone()..) {
-            let Some(b) = full.strip_prefix(&prefix) else {
-                break;
-            };
-            let Some(choice) = facts.template(full, allowed) else {
-                let props: Vec<&str> = block.properties.keys().map(String::as_str).collect();
-                let why = format!(
-                    "no vanilla {} with properties [{}]",
-                    block.vanilla_class().rsplit('.').next().unwrap_or(""),
-                    props.join(", ")
-                );
-                report.blocks_unknown.insert(b.to_owned(), why);
-                continue;
-            };
-            let mut v = json!({"template": choice.template, "properties": choice.properties});
-            if block.item == "minecraft:air" {
-                v["item"] = json!(false);
-            } else if block.item != *full {
-                v["item"] = json!(false);
-                report
-                    .differences
-                    .entry(b.to_owned())
-                    .or_default()
-                    .push(format!("its item is {}", block.item));
-            } else {
-                declared.insert(full.clone());
-                let drop = (!block_loot.contains(b))
-                    .then(|| block.drops_itself(full))
-                    .flatten();
-                if let Some(drop) = drop {
-                    let mut entry = json!({"type": "minecraft:item", "name": full});
-                    if let crate::oracle::SelfDrop::When(property, value) = drop {
-                        entry["condition"] = json!({
-                            "type": "minecraft:match_block",
-                            "blocks": full,
-                            "state": {property: value}
-                        });
-                    }
-                    let table = json!({
-                        "type": "minecraft:block",
-                        "pools": [{
-                            "condition": {"type": "minecraft:survives_explosion"},
-                            "entries": [entry],
-                            "rolls": 1
-                        }],
-                        "random_sequence": format!("{id}:blocks/{b}")
-                    });
-                    let file = inside.join(format!("data/{id}/loot_table/blocks/{b}.json"));
-                    write(
-                        &file,
-                        &serde_json::to_vec_pretty(&table).unwrap_or_default(),
-                    )?;
-                    report.loot_tables_added += 1;
-                }
-            }
-            write_decl("block", b, &v)?;
-            report.blocks.insert(b.to_owned(), choice.template);
-            if !choice.differences.is_empty() {
-                report
-                    .differences
-                    .entry(b.to_owned())
-                    .or_default()
-                    .extend(choice.differences);
-            }
-        }
-        for (full, item) in facts.items.range(prefix.clone()..) {
-            let Some(name) = full.strip_prefix(&prefix) else {
-                break;
-            };
-            if declared.contains(full) {
-                continue;
-            }
-            if item
-                .block
-                .as_ref()
-                .is_some_and(|b| facts.blocks.contains_key(b))
-                && report.blocks_unknown.contains_key(name)
-            {
-                report
-                    .items_unknown
-                    .insert(name.to_owned(), "its block is left out".into());
-                continue;
-            }
-            match facts.item(full, &owned) {
-                Ok((v, differences)) => {
-                    write_decl("item", name, &v)?;
-                    report.items += 1;
-                    if !differences.is_empty() {
-                        report.differences.insert(name.to_owned(), differences);
-                    }
-                }
-                Err(e) => {
-                    report.items_unknown.insert(name.to_owned(), e);
-                }
-            }
+        // The mod's blocks and items under each namespace it owns (BuildCraft's are under
+        // `buildcraftenergy`, `buildcraftfactory`..., not its id), declared there.
+        for ns in owned.clone() {
+            declare::namespace(
+                ns,
+                id,
+                facts,
+                allowed,
+                &owned,
+                &block_loot,
+                &inside,
+                &mut report,
+            )?;
         }
         // 26.3 draws worn armour from an equipment asset per material, in the mod's own namespaces.
         let mut materials = BTreeSet::new();
@@ -1401,9 +1365,17 @@ pub fn carry(
     unregistered_recipes(&inside, &outside, id, &owned, &mut report)?;
     let q = |s: &str| toml::Value::String(s.to_owned()).to_string();
     let name = if info.name.is_empty() { id } else { &info.name };
+    // A mod that adds nothing to the world (no block, no item, no data: a minimap, a HUD) is
+    // the player's own business, as a client-side mod: any server accepts the player with it
+    // (its client half then runs in the player's game; docs/java-bridge.md).
+    let side = if changes_world(&inside, &report) {
+        "both"
+    } else {
+        "client"
+    };
     let mut manifest = format!(
-        "# Carried over from {jar} by horizon-port-pack, for local use only.\n# Licence: {license}\nid = {}\nname = {}\nversion = {}\napi = \"0.2\"\nside = \"both\"\ncapabilities = [\"registries\"]\n",
-        q(id),
+        "# Carried over from {jar} by horizon-port-pack, for local use only.\n# Licence: {license}\nid = {}\nname = {}\nversion = {}\napi = \"0.2\"\nside = \"{side}\"\ncapabilities = [\"registries\"]\n",
+        q(&content_id),
         q(name),
         q(&info.version),
         jar = jar.file_name().unwrap_or_default().to_string_lossy(),
@@ -1413,8 +1385,13 @@ pub fn carry(
             &info.license
         },
     );
-    if !report.namespaces.is_empty() {
-        let list: Vec<String> = report.namespaces.iter().map(|n| q(n)).collect();
+    let namespaces: Vec<&String> = (content_id != *id)
+        .then_some(id)
+        .into_iter()
+        .chain(report.namespaces.iter())
+        .collect();
+    if !namespaces.is_empty() {
+        let list: Vec<String> = namespaces.iter().map(|n| q(n)).collect();
         manifest.push_str(&format!("namespaces = [{}]\n", list.join(", ")));
     }
     write(&inside.join("horizon-mod.toml"), manifest.as_bytes())?;
@@ -2161,6 +2138,11 @@ mod tests {
                 "assets/gem/lang/de_de.json",
                 "\u{feff}{\"item.gem.gem\": \"Juwel\"}",
             ),
+            // A legacy one: carried as JSON.
+            (
+                "assets/gem/lang/fr_FR.lang",
+                "# comment\nitem.gem.gem=Gemme\n\ngem.chat=a=b\n",
+            ),
         ];
         for (name, text) in files {
             zip.start_file(*name, zip::write::SimpleFileOptions::default())
@@ -2189,7 +2171,7 @@ mod tests {
             &BTreeMap::new(),
         )
         .unwrap();
-        assert_eq!(report.copied, 16);
+        assert_eq!(report.copied, 17);
         let unreadable: Vec<&str> = report.unreadable.keys().map(String::as_str).collect();
         assert_eq!(
             unreadable,
@@ -2209,6 +2191,11 @@ mod tests {
         .unwrap();
         assert_eq!(replacing, json!({"replace": true, "values": []}));
         assert!(!out.join("carry/data/gem/tags/item/empty.json").exists());
+        let french: Value = serde_json::from_slice(
+            &fs::read(out.join("carry/assets/gem/lang/fr_fr.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(french, json!({"item.gem.gem": "Gemme", "gem.chat": "a=b"}));
         // A byte-order mark is dropped, the file kept.
         assert_eq!(
             fs::read(out.join("carry/assets/gem/lang/de_de.json")).unwrap()[0],
@@ -2260,6 +2247,7 @@ mod tests {
         fs::remove_dir_all(&dir).unwrap();
     }
 
+    mod fabric_ids;
     /// A mod shipping its files under other names than its id: the
     /// namespaces its own files name are its, compat files for other mods
     /// and a pack mod's namespace stay outside.
@@ -2333,6 +2321,8 @@ mod tests {
         let carried = out.join("carry");
         let package = horizon_mods::Package::read(&carried).unwrap();
         assert_eq!(package.manifest.namespaces, ["kaisyn", "towers_wg"]);
+        // Its structures change the world: every player joining needs it.
+        assert_eq!(package.manifest.side, horizon_mods::Side::Both);
         let content = horizon_mods::Content::read(&carried, &package.manifest).unwrap();
         assert!(
             content
@@ -2346,6 +2336,46 @@ mod tests {
         )
         .unwrap();
         assert_eq!(tag, json!({"values": ["minecraft:plains"]}));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A mod with no block, item or data (a minimap: textures and translations) is carried as a
+    /// client-side mod, which any server accepts the player with.
+    #[test]
+    fn a_mod_without_world_content_is_client_side() {
+        let dir =
+            std::env::temp_dir().join(format!("horizon-port-pack-hud-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let jar = dir.join("minimap-1.0.jar");
+        let mut zip = zip::ZipWriter::new(fs::File::create(&jar).unwrap());
+        let files: &[(&str, &str)] = &[
+            (
+                "META-INF/neoforge.mods.toml",
+                "license = \"MIT\"\n[[mods]]\nmodId = \"minimap\"\nversion = \"1.0\"\n",
+            ),
+            ("com/example/minimap/Minimap.class", "not real bytecode"),
+            ("assets/minimap/textures/gui/frame.png", "png"),
+            (
+                "assets/minimap/lang/en_us.json",
+                r#"{"key.minimap.zoom": "Zoom"}"#,
+            ),
+        ];
+        for (name, text) in files {
+            zip.start_file(*name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            zip.write_all(text.as_bytes()).unwrap();
+        }
+        zip.finish().unwrap();
+        let info = crate::jar::read(&jar).unwrap();
+        let out = dir.join("work/mods/minimap");
+        let pack = Pack {
+            loaded: &|_| true,
+            mods: &|_| false,
+        };
+        carry(&jar, &info, &out, None, &|_| true, &pack, &BTreeMap::new()).unwrap();
+        let package = horizon_mods::Package::read(&out.join("carry")).unwrap();
+        assert_eq!(package.manifest.side, horizon_mods::Side::Client);
         fs::remove_dir_all(&dir).unwrap();
     }
 
