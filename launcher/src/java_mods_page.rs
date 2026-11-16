@@ -194,6 +194,7 @@ impl Launcher {
             .child(div().flex().items_center().gap(px(12.)).child(div().flex_1().font_weight(FontWeight::SEMIBOLD).child(tr("Fabric mods (experimental)"))).child(toggle))
             .child(div().text_color(t.muted).child(tr("Offline Fabric does not verify ownership. Java mods can access your files and accounts. Use only trusted mods; back up worlds.")))
             .child(div().text_color(t.muted).child(tr("Install a Horizon version and prepare it with your Minecraft 26.3 files first. JDK 25 and a first-time internet connection may be needed.")))
+            .child(div().text_color(t.muted).child(tr("Add exactly one Fabric API JAR for Minecraft 26.3 yourself. This beta client does not substitute another version.")))
             .child(div().text_color(t.muted).child(status))
             .child(div().flex().flex_wrap().gap(px(8.)).child(import).child(add).child(open).child(refresh))
             .children(self.java_mods_page.note.clone().map(|note| notice(note, &t)))

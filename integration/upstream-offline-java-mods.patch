@@ -9,7 +9,7 @@ index bdca53669..806fab475 100644
 -                "--java-mods" => {}
 +                "--java-mods" | "--offline-java-mods" => {}
 diff --git a/crates/horizon-client/src/game/java_mods/bridge.rs b/crates/horizon-client/src/game/java_mods/bridge.rs
-index 37d154754..a83b0b638 100644
+index 37d154754..8f5b65081 100644
 --- a/crates/horizon-client/src/game/java_mods/bridge.rs
 +++ b/crates/horizon-client/src/game/java_mods/bridge.rs
 @@ -38,0 +39,3 @@ pub(in crate::game) fn opted_in() -> bool {
@@ -41,29 +41,18 @@ index 37d154754..a83b0b638 100644
 @@ -655,2 +638,2 @@ fn start_neoforge(
 -/// Fabric's part of the config: the prepared game jar and libraries, and Horizon's pinned Fabric
 -/// API (a player's own is skipped, [`run_jars`]).
-+/// Fabric's part of the config. A Fabric API in mods-java takes precedence; otherwise use
-+/// the checked pinned fallback. Never load both, or silently pick between multiple user copies.
-@@ -664,5 +647,8 @@ fn fabric(
++/// Fabric's part of the config. Fabric API is supplied by the player in mods-java;
++/// never add a built-in copy or silently pick between multiple user copies.
+@@ -664,5 +647,4 @@ fn fabric(
 -    let mut add_mods = vec![horizon_jvm::libs::ensure_fabric_api(
 -        &work.join("fabric-api"),
 -    )?];
 -    // With jars left out (`run_jars`: renderers, a player's own Fabric API), Fabric reads no
 -    // folder: the jars it loads are listed.
-+    let selected = horizon_jvm::renderers::selected_fabric_api(jars)?;
-+    let mut add_mods = if let Some(api) = selected {
-+        log::info!("Java mods: using your Fabric API: {}", api.display());
-+        Vec::new()
-+    } else {
-+        vec![horizon_jvm::libs::ensure_fabric_api(&work.join("fabric-api"))?]
-+    };
++    let api = horizon_jvm::renderers::require_fabric_api(jars)?;
++    log::info!("Java mods: using your Fabric API: {}", api.display());
++    let mut add_mods = Vec::new();
 +    // With renderer jars left out, Fabric reads an empty folder; the kept jars are listed.
-diff --git a/crates/horizon-jvm/fabric-api.tsv b/crates/horizon-jvm/fabric-api.tsv
-index 86d0657db..c4557f7c1 100644
---- a/crates/horizon-jvm/fabric-api.tsv
-+++ b/crates/horizon-jvm/fabric-api.tsv
-@@ -3 +3 @@
--fabric-api-0.165.0+26.3.jar	https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.165.0+26.3/fabric-api-0.165.0+26.3.jar	18442e2ad466d6ef41c37dbb4cb68495e6ca6658b1f1ee9be76143d155ef2c88
-+fabric-api-0.166.2+26.3.jar	https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.166.2+26.3/fabric-api-0.166.2+26.3.jar	e8acacc7836f39237c83c2a664b039647ee36f93822797acc40cda44666002ea
 diff --git a/crates/horizon-jvm/src/gate.rs b/crates/horizon-jvm/src/gate.rs
 index e5d5f194a..1b120623f 100644
 --- a/crates/horizon-jvm/src/gate.rs
@@ -110,22 +99,25 @@ index 91b7bb8f0..e2da5af1d 100644
 +    assert!(OptIn::Offline.runs());
 +}
 diff --git a/crates/horizon-jvm/src/lib.rs b/crates/horizon-jvm/src/lib.rs
-index 129275c2b..34b2f8dc0 100644
+index 129275c2b..5b5439821 100644
 --- a/crates/horizon-jvm/src/lib.rs
 +++ b/crates/horizon-jvm/src/lib.rs
-@@ -358 +358,6 @@ fn platform_jar(
+@@ -358 +358,9 @@ fn platform_jar(
 -    let fabric_api = libs::ensure_fabric_api(&config.work.join("fabric-api"))?;
-+    // Compile the platform against the API Fabric will actually load. The pinned fallback is
-+    // still needed when no API was supplied; a user-provided one needs no fallback download.
++    // Compile against the same API Fabric loads. The client requires it in mods-java;
++    // other callers may list it explicitly in add_mods or their mods folder.
 +    let fabric_api = match renderers::selected_fabric_api(&config.jars)? {
 +        Some(api) => api,
-+        None => libs::ensure_fabric_api(&config.work.join("fabric-api"))?,
++        None => match renderers::selected_fabric_api(&fabric.add_mods)? {
++            Some(api) => api,
++            None => renderers::require_fabric_api(&jars(&fabric.mods))?,
++        },
 +    };
 diff --git a/crates/horizon-jvm/src/renderers.rs b/crates/horizon-jvm/src/renderers.rs
-index 1267b08dc..2894f31bf 100644
+index 1267b08dc..4200e140e 100644
 --- a/crates/horizon-jvm/src/renderers.rs
 +++ b/crates/horizon-jvm/src/renderers.rs
-@@ -97,0 +98,16 @@ pub fn mod_id(jar: &Path) -> Option<String> {
+@@ -97,0 +98,23 @@ pub fn mod_id(jar: &Path) -> Option<String> {
 +/// A player-supplied Fabric API, identified by its metadata rather than its filename.
 +/// Reject duplicates instead of loading an arbitrary version or loading two copies.
 +pub fn selected_fabric_api(jars: &[PathBuf]) -> Result<Option<PathBuf>, String> {
@@ -142,7 +134,14 @@ index 1267b08dc..2894f31bf 100644
 +    Ok(found)
 +}
 +
-@@ -154,0 +171,23 @@ mod tests {
++/// Require a player-supplied API: do not substitute or download a built-in one.
++pub fn require_fabric_api(jars: &[PathBuf]) -> Result<PathBuf, String> {
++    selected_fabric_api(jars)?.ok_or_else(|| {
++        "Fabric API is missing from mods-java. Add one Fabric API JAR for Minecraft 26.3 in the launcher.".into()
++    })
++}
++
+@@ -154,0 +178,24 @@ mod tests {
 +    #[test]
 +    fn player_fabric_api_is_chosen_by_metadata_and_duplicates_are_rejected() {
 +        use std::io::Write;
@@ -160,9 +159,10 @@ index 1267b08dc..2894f31bf 100644
 +        let other = jar("fabric-api-not-really.jar", "some-other-mod");
 +        let chosen = jar("renamed.jar", "fabric-api");
 +        let duplicate = jar("another.jar", "fabric-api");
-+        assert_eq!(selected_fabric_api(&[other.clone()]).unwrap(), None);
-+        assert_eq!(selected_fabric_api(&[other, chosen.clone()]).unwrap(), Some(chosen.clone()));
-+        assert!(selected_fabric_api(&[chosen, duplicate]).unwrap_err().contains("More than one Fabric API"));
++        assert!(require_fabric_api(&[]).unwrap_err().contains("missing"));
++        assert!(require_fabric_api(&[other.clone()]).unwrap_err().contains("missing"));
++        assert_eq!(require_fabric_api(&[other, chosen.clone()]).unwrap(), chosen.clone());
++        assert!(require_fabric_api(&[chosen, duplicate]).unwrap_err().contains("More than one Fabric API"));
 +        std::fs::remove_dir_all(dir).unwrap();
 +    }
 +

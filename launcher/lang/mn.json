@@ -1259,6 +1259,7 @@
   "To run these mods, import the offline Java Bridge client and use play --fabric.": "To run these mods, import the offline Java Bridge client and use play --fabric.",
   "Add Fabric mods…": "Add Fabric mods…",
   "Added {count} Fabric mods.": "Added {count} Fabric mods.",
+  "Add exactly one Fabric API JAR for Minecraft 26.3 yourself. This beta client does not substitute another version.": "Add exactly one Fabric API JAR for Minecraft 26.3 yourself. This beta client does not substitute another version.",
   "Fabric mods (experimental)": "Fabric mods (experimental)",
   "Import Java Bridge client…": "Import Java Bridge client…",
   "Import the Java Bridge client from the beta archive before enabling Fabric.": "Import the Java Bridge client from the beta archive before enabling Fabric.",
