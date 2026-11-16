@@ -61,3 +61,10 @@ index e5d5f19..1b12062 100644
 +    if offline {
 +        return OptIn::Offline;
 +    }
+
+diff --git a/crates/horizon-jvm/fabric-api.tsv b/crates/horizon-jvm/fabric-api.tsv
+--- a/crates/horizon-jvm/fabric-api.tsv
++++ b/crates/horizon-jvm/fabric-api.tsv
+@@ -3 +3 @@
+-fabric-api-0.165.0+26.3.jar	https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.165.0+26.3/fabric-api-0.165.0+26.3.jar	18442e2ad466d6ef41c37dbb4cb68495e6ca6658b1f1ee9be76143d155ef2c88
++fabric-api-0.166.2+26.3.jar	https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.166.2+26.3/fabric-api-0.166.2+26.3.jar	e8acacc7836f39237c83c2a664b039647ee36f93822797acc40cda44666002ea
