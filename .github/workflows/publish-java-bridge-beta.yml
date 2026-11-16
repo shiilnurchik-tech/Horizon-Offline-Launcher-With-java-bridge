@@ -15,17 +15,20 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 100
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      BUILD_RUN: '43741554974'
-      BUILD_COMMIT: 'c9a552bffaf7f001b329461e0d29af041403c64c'
-      RELEASE_TAG: 'java-bridge-beta-2026.11.15-ui'
+      BUILD_RUN: '43811999426'
+      BUILD_COMMIT: 'f0aab6ceeb8603bca22f4f646a3a0b0738faa778'
+      RELEASE_TAG: 'java-bridge-beta-2026.11.15-update-fix'
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Wait for the fixed build to pass
+        shell: bash
+        run: gh run watch "$BUILD_RUN" --exit-status
       - name: Verify original build and existing draft
         shell: bash
         run: |
