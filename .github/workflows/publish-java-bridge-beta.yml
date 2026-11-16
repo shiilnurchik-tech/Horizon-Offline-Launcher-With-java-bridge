@@ -19,16 +19,16 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      BUILD_RUN: '43822616660'
-      BUILD_COMMIT: 'd7047979bf01f415733cbc54db1d14c9361fc23b'
-      RELEASE_TAG: 'java-bridge-beta-own-fabric-api'
+      BUILD_RUN: '43826731384'
+      BUILD_COMMIT: '40e058d9a6b5658ec5813a0248ffbc0ad7e27256'
+      RELEASE_TAG: 'java-bridge-beta-user-only-fabric-api'
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - name: Wait for the fixed build to pass
         shell: bash
-        run: gh run watch "$BUILD_RUN" --exit-status
+        run: gh run watch "$BUILD_RUN" --interval 60 --exit-status
       - name: Verify original build and existing draft
         shell: bash
         run: |
