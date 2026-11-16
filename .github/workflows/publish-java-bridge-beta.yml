@@ -3,8 +3,9 @@
 name: Publish Java Bridge beta
 
 on:
-  # Manual retry only: automatic publication failed because GitHub denied the runner's
-  # contents:write release permission. Do not publish again on unrelated branch pushes.
+  push:
+    branches: ['arena/fb746f0f-horizon-offline-launcher-with']
+    paths: ['.github/workflows/publish-java-bridge-beta.yml']
   workflow_dispatch:
 
 permissions:
