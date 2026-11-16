@@ -1,13 +1,5 @@
-diff --git a/crates/horizon-client/src/game/java_mods/bridge.rs b/crates/horizon-client/src/game/java_mods/bridge.rs
-index 37d1547..6d89cb9 100644
---- a/crates/horizon-client/src/game/java_mods/bridge.rs
-+++ b/crates/horizon-client/src/game/java_mods/bridge.rs
-@@ -38,0 +39,3 @@ pub(in crate::game) fn opted_in() -> bool {
-+            OptIn::Offline => {
-+                log::warn!("Java mods: explicitly enabled in offline mode; Minecraft ownership was not verified. Only run trusted Java mods.");
-+            }
 diff --git a/crates/horizon-client/src/game.rs b/crates/horizon-client/src/game.rs
-index bdca536..806fab4 100644
+index bdca53669..806fab475 100644
 --- a/crates/horizon-client/src/game.rs
 +++ b/crates/horizon-client/src/game.rs
 @@ -700 +700 @@ impl Options {
@@ -16,22 +8,64 @@ index bdca536..806fab4 100644
 @@ -734 +734 @@ impl Options {
 -                "--java-mods" => {}
 +                "--java-mods" | "--offline-java-mods" => {}
-diff --git a/crates/horizon-jvm/src/gate/tests.rs b/crates/horizon-jvm/src/gate/tests.rs
-index 91b7bb8..e2da5af 100644
---- a/crates/horizon-jvm/src/gate/tests.rs
-+++ b/crates/horizon-jvm/src/gate/tests.rs
-@@ -287,0 +288,9 @@ fn the_services_check_reads_profile_and_entitlements() {
-+
-+#[test]
-+fn offline_mods_require_both_explicit_arguments() {
-+    assert_eq!(run(&[], &[], Services::DoesNot), (OptIn::Off, false));
-+    assert_eq!(run(&[OFFLINE_ARG], &[], Services::DoesNot), (OptIn::Off, false));
-+    assert_eq!(run(&[ARG], &[], Services::DoesNot), (OptIn::NoOwner(Refused::NoRecord), false));
-+    assert_eq!(run(&[ARG, OFFLINE_ARG], &[], Services::DoesNot), (OptIn::Offline, false));
-+    assert!(OptIn::Offline.runs());
-+}
+diff --git a/crates/horizon-client/src/game/java_mods/bridge.rs b/crates/horizon-client/src/game/java_mods/bridge.rs
+index 37d154754..a83b0b638 100644
+--- a/crates/horizon-client/src/game/java_mods/bridge.rs
++++ b/crates/horizon-client/src/game/java_mods/bridge.rs
+@@ -38,0 +39,3 @@ pub(in crate::game) fn opted_in() -> bool {
++            OptIn::Offline => {
++                log::warn!("Java mods: explicitly enabled in offline mode; Minecraft ownership was not verified. Only run trusted Java mods.");
++            }
+@@ -210,9 +212,0 @@ fn run_jars(dir: &Path) -> Vec<PathBuf> {
+-    // Horizon's pinned Fabric API, always: a player's own (another version) is skipped.
+-    let (theirs, kept): (Vec<PathBuf>, Vec<PathBuf>) =
+-        kept.into_iter().partition(|j| own_fabric_api(j));
+-    for jar in &theirs {
+-        log::info!(
+-            "Java mods: {} skipped: Horizon brings its own Fabric API (the file is left as it is)",
+-            jar.file_name().unwrap_or_default().to_string_lossy()
+-        );
+-    }
+@@ -223,11 +216,0 @@ fn run_jars(dir: &Path) -> Vec<PathBuf> {
+-/// Whether `jar` is Fabric API (its id `fabric-api`, or a file named `fabric-api…`), which
+-/// Horizon brings pinned ([`horizon_jvm::libs::ensure_fabric_api`]).
+-fn own_fabric_api(jar: &Path) -> bool {
+-    let named = jar.file_name().is_some_and(|n| {
+-        n.to_string_lossy()
+-            .to_ascii_lowercase()
+-            .starts_with("fabric-api")
+-    });
+-    named || horizon_jvm::renderers::mod_id(jar).as_deref() == Some("fabric-api")
+-}
+-
+@@ -655,2 +638,2 @@ fn start_neoforge(
+-/// Fabric's part of the config: the prepared game jar and libraries, and Horizon's pinned Fabric
+-/// API (a player's own is skipped, [`run_jars`]).
++/// Fabric's part of the config. A Fabric API in mods-java takes precedence; otherwise use
++/// the checked pinned fallback. Never load both, or silently pick between multiple user copies.
+@@ -664,5 +647,8 @@ fn fabric(
+-    let mut add_mods = vec![horizon_jvm::libs::ensure_fabric_api(
+-        &work.join("fabric-api"),
+-    )?];
+-    // With jars left out (`run_jars`: renderers, a player's own Fabric API), Fabric reads no
+-    // folder: the jars it loads are listed.
++    let selected = horizon_jvm::renderers::selected_fabric_api(jars)?;
++    let mut add_mods = if let Some(api) = selected {
++        log::info!("Java mods: using your Fabric API: {}", api.display());
++        Vec::new()
++    } else {
++        vec![horizon_jvm::libs::ensure_fabric_api(&work.join("fabric-api"))?]
++    };
++    // With renderer jars left out, Fabric reads an empty folder; the kept jars are listed.
+diff --git a/crates/horizon-jvm/fabric-api.tsv b/crates/horizon-jvm/fabric-api.tsv
+index 86d0657db..c4557f7c1 100644
+--- a/crates/horizon-jvm/fabric-api.tsv
++++ b/crates/horizon-jvm/fabric-api.tsv
+@@ -3 +3 @@
+-fabric-api-0.165.0+26.3.jar	https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.165.0+26.3/fabric-api-0.165.0+26.3.jar	18442e2ad466d6ef41c37dbb4cb68495e6ca6658b1f1ee9be76143d155ef2c88
++fabric-api-0.166.2+26.3.jar	https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.166.2+26.3/fabric-api-0.166.2+26.3.jar	e8acacc7836f39237c83c2a664b039647ee36f93822797acc40cda44666002ea
 diff --git a/crates/horizon-jvm/src/gate.rs b/crates/horizon-jvm/src/gate.rs
-index e5d5f19..1b12062 100644
+index e5d5f194a..1b120623f 100644
 --- a/crates/horizon-jvm/src/gate.rs
 +++ b/crates/horizon-jvm/src/gate.rs
 @@ -2,0 +3,4 @@
@@ -61,10 +95,74 @@ index e5d5f19..1b12062 100644
 +    if offline {
 +        return OptIn::Offline;
 +    }
-
-diff --git a/crates/horizon-jvm/fabric-api.tsv b/crates/horizon-jvm/fabric-api.tsv
---- a/crates/horizon-jvm/fabric-api.tsv
-+++ b/crates/horizon-jvm/fabric-api.tsv
-@@ -3 +3 @@
--fabric-api-0.165.0+26.3.jar	https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.165.0+26.3/fabric-api-0.165.0+26.3.jar	18442e2ad466d6ef41c37dbb4cb68495e6ca6658b1f1ee9be76143d155ef2c88
-+fabric-api-0.166.2+26.3.jar	https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/0.166.2+26.3/fabric-api-0.166.2+26.3.jar	e8acacc7836f39237c83c2a664b039647ee36f93822797acc40cda44666002ea
+diff --git a/crates/horizon-jvm/src/gate/tests.rs b/crates/horizon-jvm/src/gate/tests.rs
+index 91b7bb8f0..e2da5af1d 100644
+--- a/crates/horizon-jvm/src/gate/tests.rs
++++ b/crates/horizon-jvm/src/gate/tests.rs
+@@ -287,0 +288,9 @@ fn the_services_check_reads_profile_and_entitlements() {
++
++#[test]
++fn offline_mods_require_both_explicit_arguments() {
++    assert_eq!(run(&[], &[], Services::DoesNot), (OptIn::Off, false));
++    assert_eq!(run(&[OFFLINE_ARG], &[], Services::DoesNot), (OptIn::Off, false));
++    assert_eq!(run(&[ARG], &[], Services::DoesNot), (OptIn::NoOwner(Refused::NoRecord), false));
++    assert_eq!(run(&[ARG, OFFLINE_ARG], &[], Services::DoesNot), (OptIn::Offline, false));
++    assert!(OptIn::Offline.runs());
++}
+diff --git a/crates/horizon-jvm/src/lib.rs b/crates/horizon-jvm/src/lib.rs
+index 129275c2b..34b2f8dc0 100644
+--- a/crates/horizon-jvm/src/lib.rs
++++ b/crates/horizon-jvm/src/lib.rs
+@@ -358 +358,6 @@ fn platform_jar(
+-    let fabric_api = libs::ensure_fabric_api(&config.work.join("fabric-api"))?;
++    // Compile the platform against the API Fabric will actually load. The pinned fallback is
++    // still needed when no API was supplied; a user-provided one needs no fallback download.
++    let fabric_api = match renderers::selected_fabric_api(&config.jars)? {
++        Some(api) => api,
++        None => libs::ensure_fabric_api(&config.work.join("fabric-api"))?,
++    };
+diff --git a/crates/horizon-jvm/src/renderers.rs b/crates/horizon-jvm/src/renderers.rs
+index 1267b08dc..2894f31bf 100644
+--- a/crates/horizon-jvm/src/renderers.rs
++++ b/crates/horizon-jvm/src/renderers.rs
+@@ -97,0 +98,16 @@ pub fn mod_id(jar: &Path) -> Option<String> {
++/// A player-supplied Fabric API, identified by its metadata rather than its filename.
++/// Reject duplicates instead of loading an arbitrary version or loading two copies.
++pub fn selected_fabric_api(jars: &[PathBuf]) -> Result<Option<PathBuf>, String> {
++    let mut found = None;
++    for jar in jars {
++        if mod_id(jar).as_deref() != Some("fabric-api") {
++            continue;
++        }
++        if found.is_some() {
++            return Err("More than one Fabric API is in mods-java. Remove the extra copies and keep only the version you want.".into());
++        }
++        found = Some(jar.clone());
++    }
++    Ok(found)
++}
++
+@@ -154,0 +171,23 @@ mod tests {
++    #[test]
++    fn player_fabric_api_is_chosen_by_metadata_and_duplicates_are_rejected() {
++        use std::io::Write;
++        let dir = std::env::temp_dir().join(format!("horizon-fabric-api-choice-{}", std::process::id()));
++        let _ = std::fs::remove_dir_all(&dir);
++        std::fs::create_dir_all(&dir).unwrap();
++        let jar = |name: &str, id: &str| {
++            let path = dir.join(name);
++            let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
++            zip.start_file("fabric.mod.json", zip::write::SimpleFileOptions::default()).unwrap();
++            write!(zip, "{{\"id\":\"{id}\"}}").unwrap();
++            zip.finish().unwrap();
++            path
++        };
++        let other = jar("fabric-api-not-really.jar", "some-other-mod");
++        let chosen = jar("renamed.jar", "fabric-api");
++        let duplicate = jar("another.jar", "fabric-api");
++        assert_eq!(selected_fabric_api(&[other.clone()]).unwrap(), None);
++        assert_eq!(selected_fabric_api(&[other, chosen.clone()]).unwrap(), Some(chosen.clone()));
++        assert!(selected_fabric_api(&[chosen, duplicate]).unwrap_err().contains("More than one Fabric API"));
++        std::fs::remove_dir_all(dir).unwrap();
++    }
++

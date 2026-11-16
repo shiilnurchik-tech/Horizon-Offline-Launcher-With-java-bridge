@@ -64,6 +64,8 @@ jobs:
       - name: Verify the pinned Fabric API release
         run: |
           python -c "import hashlib, io, json, pathlib, urllib.request, zipfile; line = [x for x in pathlib.Path('crates/horizon-jvm/fabric-api.tsv').read_text().splitlines() if x and not x.startswith('#')][0]; name, url, expected = line.split('\t'); assert name == 'fabric-api-0.166.2+26.3.jar'; data = urllib.request.urlopen(url, timeout=120).read(); assert hashlib.sha256(data).hexdigest() == expected; metadata = json.loads(zipfile.ZipFile(io.BytesIO(data)).read('fabric.mod.json')); assert metadata['id'] == 'fabric-api' and metadata['version'] == '0.166.2+26.3'"
+      - name: Test selection of a player's Fabric API
+        run: cargo test --locked -p horizon-jvm --lib player_fabric_api_is_chosen_by_metadata_and_duplicates_are_rejected
       - name: Test explicit offline opt-in and original ownership gate
         run: |
           set +e
