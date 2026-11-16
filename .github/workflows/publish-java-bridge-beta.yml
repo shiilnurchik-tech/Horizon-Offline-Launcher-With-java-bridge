@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Verify original build and absence of release tag
+      - name: Verify original build and existing draft
         shell: bash
         run: |
           set -euo pipefail
@@ -33,11 +33,13 @@ jobs:
           test "$(jq -r .head_sha <<< "$run")" = "$BUILD_COMMIT"
           test "$(jq -r .status <<< "$run")" = completed
           test "$(jq -r .conclusion <<< "$run")" = success
-          # Never modify an existing release or tag from this workflow.
-          if gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            echo '::error::The release tag already exists; refusing to overwrite it.'
-            exit 1
-          fi
+          # Only the specifically prepared draft may be completed; never alter a published
+          # release, an unrelated tag, or a draft belonging to a different source commit.
+          release=$(gh release view "$RELEASE_TAG" --json isDraft,isPrerelease,targetCommitish,assets)
+          test "$(jq -r .isDraft <<< "$release")" = true
+          test "$(jq -r .isPrerelease <<< "$release")" = true
+          test "$(jq -r .targetCommitish <<< "$release")" = "$BUILD_COMMIT"
+          test "$(jq '.assets | length' <<< "$release")" = 0
       - uses: actions/download-artifact@v4
         with:
           name: offline-java-bridge-beta-linux-x64
@@ -59,7 +61,7 @@ jobs:
             if [ ! -s "$file" ]; then echo "::error::Missing or empty $file"; ls -la; exit 1; fi
           done
           sha256sum offline-java-bridge-beta-linux-x64.tar.gz offline-java-bridge-beta-windows-x64.zip > SHA256SUMS.txt
-          if ! output=$(gh release create "$RELEASE_TAG" --target "$BUILD_COMMIT" --title 'Horizon Offline + Java Bridge — beta с интерфейсом Fabric' --notes-file ../integration/release-notes-ui.md --prerelease --draft offline-java-bridge-beta-linux-x64.tar.gz offline-java-bridge-beta-windows-x64.zip SHA256SUMS.txt 2>&1); then
+          if ! output=$(gh release upload "$RELEASE_TAG" offline-java-bridge-beta-linux-x64.tar.gz offline-java-bridge-beta-windows-x64.zip SHA256SUMS.txt 2>&1); then
             output=${output//'%'/'%25'}; output=${output//$'\n'/'%0A'}; output=${output//$'\r'/'%0D'}
             echo "::error::$output"; exit 1
           fi
