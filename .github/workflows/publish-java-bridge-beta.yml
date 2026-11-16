@@ -19,9 +19,9 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      BUILD_RUN: '43811999426'
-      BUILD_COMMIT: 'f0aab6ceeb8603bca22f4f646a3a0b0738faa778'
-      RELEASE_TAG: 'java-bridge-beta-2026.11.15-update-fix'
+      BUILD_RUN: '43819240655'
+      BUILD_COMMIT: '30023b8d8e326b44128ae420f9b64c7a846734eb'
+      RELEASE_TAG: 'java-bridge-beta-fabric-api-0.166.2'
     steps:
       - uses: actions/checkout@v4
         with:
