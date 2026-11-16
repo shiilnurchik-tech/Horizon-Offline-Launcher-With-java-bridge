@@ -121,7 +121,8 @@ jobs:
     timeout-minutes: 90
     env:
       RUSTFLAGS: ${{ matrix.rustflags }}
-      HORIZON_LAUNCHER_NO_SELF_UPDATE: '1'
+      # Embedded into this beta binary; the runtime environment is not inherited by users.
+      HORIZON_BRIDGE_BETA_NO_SELF_UPDATE: '1'
     defaults:
       run:
         shell: bash
@@ -167,6 +168,9 @@ jobs:
             echo "::error::$detail"
           fi
           exit "$status"
+      - name: Verify beta self-update is disabled without a runtime setting
+        run: |
+          python -c "import os, subprocess; e = os.environ.copy(); e.pop('HORIZON_LAUNCHER_NO_SELF_UPDATE', None); e['HORIZON_EXPECT_BRIDGE_BETA'] = '1'; subprocess.run(['cargo', 'test', '--release', '--locked', '--lib', 'beta_build_never_self_updates'], env=e, check=True)"
       - name: Build offline launcher
         run: |
           set +e

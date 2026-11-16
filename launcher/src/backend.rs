@@ -3545,11 +3545,18 @@ fn launcher_asset_running_from(appimage: bool) -> Option<&'static str> {
     }
 }
 
+/// The experimental bridge bundle must never replace itself with the ordinary offline launcher.
+/// This is embedded at compile time, unlike the runtime environment variable below.
+pub fn bridge_beta_build() -> bool {
+    option_env!("HORIZON_BRIDGE_BETA_NO_SELF_UPDATE") == Some("1")
+}
+
 /// Whether the launcher replaces itself with newer releases of [`REPO`].
 /// `HORIZON_LAUNCHER_NO_SELF_UPDATE=1` keeps updates with a package manager (and out of tests);
-/// a debug build never replaces itself.
+/// a debug build and a bridge beta build never replace themselves.
 pub fn self_update_allowed() -> bool {
-    !cfg!(debug_assertions)
+    !bridge_beta_build()
+        && !cfg!(debug_assertions)
         && std::env::var_os("HORIZON_LAUNCHER_NO_SELF_UPDATE")
             .is_none_or(|v| v.is_empty() || v == "0")
 }
@@ -3953,6 +3960,10 @@ pub fn self_update(release: &Release, progress: impl Fn(f32)) -> Result<(), Stri
 /// stage folder that no other launcher writes to. None when the file there already is that release
 /// or a newer one.
 pub fn stage_update(release: &Release, progress: impl Fn(f32)) -> Result<Option<Staged>, String> {
+    // Guard this entry point too, not just the GUI and CLI callers.
+    if bridge_beta_build() {
+        return Err("This Java Bridge beta does not replace itself with the ordinary launcher.".into());
+    }
     let (url, size) = release
         .asset
         .clone()
@@ -4648,6 +4659,17 @@ mod tests {
     use super::*;
     use std::cmp::Ordering::*;
     use std::ffi::OsStr;
+
+    #[test]
+    fn beta_build_never_self_updates() {
+        if std::env::var_os("HORIZON_EXPECT_BRIDGE_BETA").is_some() {
+            assert!(bridge_beta_build(), "beta build flag was not embedded");
+            assert!(std::env::var_os("HORIZON_LAUNCHER_NO_SELF_UPDATE").is_none());
+        }
+        if bridge_beta_build() {
+            assert!(!self_update_allowed());
+        }
+    }
 
     fn pe_architecture(bytes: &[u8]) -> Option<GameArchitecture> {
         if bytes.get(..2)? != b"MZ" {
